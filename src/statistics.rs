@@ -1,0 +1,62 @@
+pub fn mean(values: &Vec<f64>) -> f64 {
+    values.iter().sum::<f64>() / values.len() as f64
+}
+pub fn standard_deviation(values: &Vec<f64>, corrected: bool) -> f64 {
+    let mean = mean(values);
+    (values.iter().map(|x| (x - mean).powi(2)).sum::<f64>()
+        / (values.len() as f64 - if corrected { 1.0 } else { 0.0 }))
+    .sqrt()
+}
+
+pub fn standard_error(values: &Vec<f64>) -> f64 {
+    let mean = mean(values);
+    values
+        .iter()
+        .map(|x| (x - mean).powi(2))
+        .sum::<f64>()
+        .sqrt()
+        / values.len() as f64
+}
+
+/// Takes (input: Vec<f64> of length N, dx: f64) and returns output: Vec<f64> of length N-2 representing the derivative of the input, where dx is the underlying step size. The result is 'shifted' to the left by 1 due to the endpoints having undefined derivative, so the derivative at input[1] is output[0] etc.
+pub fn centred_difference_derivative(input: &Vec<f64>, dx: f64) -> Vec<f64> {
+    let mut result = Vec::with_capacity(input.len() - 2);
+    for i in 1..(input.len() - 1) {
+        result.push((input[i + 1] - input[i - 1]) / (2.0 * dx));
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn mean_tests() {
+        let x = vec![1.0, 1.0, 1.0, 1.0];
+        assert_eq!(mean(&x), 1.0);
+        let x = vec![1.0, 4.0, 2.3, 6.3, -1.5];
+        assert_eq!(mean(&x), 2.42);
+        let x = vec![
+            7.0, 12.0, 5.0, 18.0, 5.0, 9.0, 10.0, 9.0, 12.0, 8.0, 12.0, 16.0,
+        ];
+        assert_eq!(mean(&x), 10.25);
+    }
+    #[test]
+    fn standard_error_tests() {
+        let x = vec![
+            7.0, 12.0, 5.0, 18.0, 5.0, 9.0, 10.0, 9.0, 12.0, 8.0, 12.0, 16.0,
+        ];
+        assert_eq!(standard_error(&x), 1.1063265039459795);
+    }
+    #[test]
+    fn standard_deviation_tests() {
+        let x = vec![4.0, 9.0, 11.0, 12.0, 17.0, 5.0, 8.0, 12.0, 14.0];
+        assert_eq!(standard_deviation(&x, true), 4.176654695380556);
+    }
+    #[test]
+    fn centred_difference_tests() {
+        let x = vec![4.0, 9.0, 4.0, 12.0, 17.0, 5.0, 8.0, 12.0, 14.0];
+        assert_eq!(centred_difference_derivative(&x, 1.0).len(), x.len() - 2);
+        assert_eq!(centred_difference_derivative(&x, 1.0)[0], 0.0);
+    }
+}
