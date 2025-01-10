@@ -8,6 +8,10 @@ use spectroscopy::effective_mass;
 use statistics::{mean, standard_deviation};
 mod spectroscopy;
 use clap::Parser;
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicI32, Ordering};
+
+use std::sync::mpsc::{self, channel};
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -24,7 +28,7 @@ struct Args {
     effective_mass_t_max: usize,
     #[arg(short, long, value_name = "WILSON_FLOW_FILE")]
     wilson_flow_filename: Option<String>,
-    #[arg(short, long, value_name = "WILSON_FLOW_NUM_MEASUREMENTS")]
+    #[arg(long, value_name = "WILSON_FLOW_NUM_MEASUREMENTS")]
     wilson_flow_nmeas: Option<usize>,
 }
 
@@ -42,11 +46,17 @@ fn main() {
     let mut effmass_mean = vec![];
     let mut effmass_error = vec![];
     for tau in 1..=args.effective_mass_t_max {
-        let mut effmass_inner = vec![];
+        let results: Vec<Result<f64, roots::SearchError>> = (0..args.n_boot)
+            .into_par_iter()
+            .map(|_| {
+                let (mu, _) = channel.get_subsample_mean_stderr(args.binwidth);
+                effective_mass(&mu, global_t, tau)
+            })
+            .collect();
+        let mut effmass_inner = Vec::with_capacity(args.n_boot as usize);
         let mut nfailures = 0;
-        for _ in 0..args.n_boot {
-            let (mu, _) = channel.get_subsample_mean_stderr(args.binwidth);
-            match effective_mass(&mu, global_t, tau) {
+        for result in results {
+            match result {
                 Ok(val) => effmass_inner.push(val),
                 Err(_) => nfailures += 1,
             }
