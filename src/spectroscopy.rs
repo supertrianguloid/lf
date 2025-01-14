@@ -75,24 +75,6 @@ fn eff_mass_eq(correlator: &[f64], tau: usize, global_t: usize, m: f64) -> f64 {
         - correlator[tau - 1] / correlator[tau]
 }
 
-/// Computes the mean of a set of observables weighted by their errors.
-/// [Definition](https://en.wikipedia.org/wiki/Weighted_arithmetic_mean#Mathematical_definition)
-fn weighted_mean(sample: &[f64], errors: &[f64]) -> (f64, f64) {
-    let weights: Vec<f64> = (0..sample.len())
-        .map(|n| 1.0 / errors[n].powf(2.0))
-        .collect();
-    let mut sum_weight_times_sample = 0.0;
-    let mut sum_weights = 0.0;
-    for i in 0..sample.len() {
-        sum_weight_times_sample += weights[i] * sample[i];
-        sum_weights += weights[i];
-    }
-    (
-        sum_weight_times_sample / sum_weights,
-        (1.0 / sum_weights).sqrt(),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,12 +116,5 @@ mod tests {
         let t = 48;
         assert_eq!(eff_mass_eq(&corr1, 3, t, 2.0), 5.559279600156479);
         assert_eq!(eff_mass_eq(&corr1, 9, t, 4.0), 53.2619348785668);
-    }
-    #[test]
-    fn weighted_mean_test() {
-        let sample = vec![1.0, 2.0];
-        let err = vec![0.3, 0.2];
-        let w_mean = (1.6923076923076923, 0.16641005886756874);
-        assert_eq!(weighted_mean(&sample, &err), w_mean);
     }
 }

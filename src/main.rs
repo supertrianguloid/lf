@@ -4,13 +4,16 @@ use io::{
     load_channel_from_file_folded, load_global_t_from_file, load_wf_observable_from_file,
     Observable, WfObservable,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use spectroscopy::effective_mass;
 use statistics::{mean, standard_deviation};
 mod spectroscopy;
 use clap::{Parser, Subcommand};
 use rayon::prelude::*;
-use std::io::stdout;
+use std::{
+    fs::File,
+    io::{stdin, stdout},
+};
 
 #[derive(Parser, Debug)]
 pub struct App {
@@ -56,7 +59,7 @@ struct FitEffectiveMassArgs {
     t2: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct EffectiveMassRow {
     #[serde(rename = "Tau")]
     tau: usize,
@@ -72,8 +75,26 @@ fn main() {
     let app = App::parse();
     match app.command {
         Command::ComputeEffectiveMass { args } => compute_effective_mass_command(args),
-        _ => todo!(),
+        Command::FitEffectiveMass { args } => fit_effective_mass_command(args),
     }
+}
+fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
+    let mut tau = vec![];
+    let mut mass = vec![];
+    let mut error = vec![];
+    let mut rdr = csv::Reader::from_reader(File::open(args.csv_filename).unwrap());
+    for result in rdr.deserialize() {
+        // Notice that we need to provide a type hint for automatic
+        // deserialization.
+        let record: EffectiveMassRow = result.unwrap();
+        tau.push(record.tau);
+        mass.push(record.mass);
+        error.push(record.error);
+    }
+    let offset = tau.iter().position(|&x| x == args.t1).unwrap();
+    let index = offset..(offset + args.t2 - args.t1 + 1);
+    let fit = statistics::weighted_mean(&mass[index.clone()], &error[index]);
+    println!("{}, {}", fit.0, fit.1);
 }
 
 fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {

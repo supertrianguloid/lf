@@ -27,6 +27,24 @@ pub fn centred_difference_derivative(input: &Vec<f64>, dx: f64) -> Vec<f64> {
     result
 }
 
+/// Computes the mean of a set of observables weighted by their errors.
+/// [Definition](https://en.wikipedia.org/wiki/Weighted_arithmetic_mean#Mathematical_definition)
+pub fn weighted_mean(sample: &[f64], errors: &[f64]) -> (f64, f64) {
+    let weights: Vec<f64> = (0..sample.len())
+        .map(|n| 1.0 / errors[n].powf(2.0))
+        .collect();
+    let mut sum_weight_times_sample = 0.0;
+    let mut sum_weights = 0.0;
+    for i in 0..sample.len() {
+        sum_weight_times_sample += weights[i] * sample[i];
+        sum_weights += weights[i];
+    }
+    (
+        sum_weight_times_sample / sum_weights,
+        (1.0 / sum_weights).sqrt(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -58,5 +76,12 @@ mod tests {
         let x = vec![4.0, 9.0, 4.0, 12.0, 17.0, 5.0, 8.0, 12.0, 14.0];
         assert_eq!(centred_difference_derivative(&x, 1.0).len(), x.len() - 2);
         assert_eq!(centred_difference_derivative(&x, 1.0)[0], 0.0);
+    }
+    #[test]
+    fn weighted_mean_test() {
+        let sample = vec![1.0, 2.0];
+        let err = vec![0.3, 0.2];
+        let w_mean = (1.6923076923076923, 0.16641005886756874);
+        assert_eq!(weighted_mean(&sample, &err), w_mean);
     }
 }
