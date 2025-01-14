@@ -70,6 +70,13 @@ struct EffectiveMassRow {
     #[serde(rename = "Failed Samples (%)")]
     failures: f64,
 }
+#[derive(Debug, Serialize)]
+struct EffectiveMassFit {
+    #[serde(rename = "Effective Mass Fit")]
+    mass: f64,
+    #[serde(rename = "Error")]
+    error: f64,
+}
 
 fn main() {
     let app = App::parse();
@@ -94,7 +101,13 @@ fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
     let offset = tau.iter().position(|&x| x == args.t1).unwrap();
     let index = offset..(offset + args.t2 - args.t1 + 1);
     let fit = statistics::weighted_mean(&mass[index.clone()], &error[index]);
-    println!("{}, {}", fit.0, fit.1);
+    let mut wtr = csv::Writer::from_writer(stdout());
+    wtr.serialize(EffectiveMassFit {
+        mass: fit.0,
+        error: fit.1,
+    })
+    .unwrap();
+    wtr.flush().unwrap();
 }
 
 fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
