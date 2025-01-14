@@ -1,3 +1,4 @@
+use crate::statistics::centred_difference_derivative;
 use crate::statistics::{mean, standard_error};
 use rand::distributions::{Distribution, Uniform};
 use std::fs::File;
@@ -33,6 +34,7 @@ pub struct Observable {
 }
 
 impl Observable {
+    /// Returns the inner data at the given configuration number as a slice
     pub fn get_slice(&self, conf_no: usize) -> &[f64] {
         &self.data[self.each_len * conf_no..self.each_len * (conf_no + 1)]
     }
@@ -163,6 +165,15 @@ pub fn load_wf_observable_from_file(
     }
 }
 
+pub fn calculate_w(T2Esym: &Vec<f64>, t: &Vec<f64>, dt: f64) -> Vec<f64> {
+    let mut ans = vec![];
+    let dT2ESym = centred_difference_derivative(T2Esym, dt);
+    for i in 0..dT2ESym.len() {
+        ans.push(dT2ESym[i] * t[i + 1]);
+    }
+    ans
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,5 +245,12 @@ mod tests {
         assert_eq!(wf_esym.nconfs, 275);
         assert_eq!(wf_esym.each_len, 1000);
         assert_eq!(wf_esym.data[3], 3.0803808637068719e-01);
+    }
+    #[test]
+    fn calculate_w0_test() {
+        let wf_t2esym = load_wf_observable_from_file("tests/wf_out", WfObservable::T2Esym, 1000);
+        let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservable::T, 1000);
+        todo!();
+        //assert!(find_w0(wf_esym) - 5.211 < 0.0001);
     }
 }

@@ -4,17 +4,35 @@ use io::{
     load_channel_from_file_folded, load_global_t_from_file, load_wf_observable_from_file,
     Observable, WfObservable,
 };
+use serde::Serialize;
 use spectroscopy::effective_mass;
 use statistics::{mean, standard_deviation};
 mod spectroscopy;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use rayon::prelude::*;
-use std::sync::atomic::{AtomicI32, Ordering};
-
-use std::sync::mpsc::{self, channel};
+use std::io::stdout;
 
 #[derive(Parser, Debug)]
-struct Args {
+pub struct App {
+    #[clap(subcommand)]
+    command: Command,
+}
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Calculate the effective mass in a given channel
+    ComputeEffectiveMass {
+        #[clap(flatten)]
+        args: ComputeEffectiveMassArgs,
+    },
+    /// Given a CSV generated from compute-effective-mass, fit a constant to it
+    FitEffectiveMass {
+        #[clap(flatten)]
+        args: FitEffectiveMassArgs,
+    },
+}
+
+#[derive(Parser, Debug)]
+struct ComputeEffectiveMassArgs {
     hmc_filename: String,
     #[arg(short, long, value_name = "CHANNEL")]
     channel: String,
@@ -31,9 +49,34 @@ struct Args {
     #[arg(long, value_name = "WILSON_FLOW_NUM_MEASUREMENTS")]
     wilson_flow_nmeas: Option<usize>,
 }
+#[derive(Parser, Debug)]
+struct FitEffectiveMassArgs {
+    csv_filename: String,
+    t1: usize,
+    t2: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct EffectiveMassRow {
+    #[serde(rename = "Tau")]
+    tau: usize,
+    #[serde(rename = "Effective Mass")]
+    mass: f64,
+    #[serde(rename = "Error")]
+    error: f64,
+    #[serde(rename = "Failed Samples (%)")]
+    failures: f64,
+}
 
 fn main() {
-    let args = Args::parse();
+    let app = App::parse();
+    match app.command {
+        Command::ComputeEffectiveMass { args } => compute_effective_mass_command(args),
+        _ => todo!(),
+    }
+}
+
+fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
     let channel = load_channel_from_file_folded(&args.hmc_filename, &args.channel)
         .thermalise(args.thermalisation);
     //if let Some(wf_filename) = args.wilson_flow_filename {
@@ -65,14 +108,22 @@ fn main() {
         effmass_mean.push(mean(&effmass_inner));
         effmass_error.push(standard_deviation(&effmass_inner, true));
     }
-    println!("Tau,Effective Mass,Error,Failed Samples (%)");
+    let mut wtr = csv::Writer::from_writer(stdout());
     for tau in 2..=args.effective_mass_t_max {
-        println!(
+        wtr.serialize(EffectiveMassRow {
+            tau,
+            mass: effmass_mean[tau - 1],
+            error: effmass_error[tau - 1],
+            failures: solve_failures[tau - 1] as f64 * 100.0 / args.n_boot as f64,
+        })
+        .unwrap();
+        wtr.flush().unwrap();
+        /*         println!(
             "{:0>2},{},{},{}",
             tau,
             effmass_mean[tau - 1],
             effmass_error[tau - 1],
             solve_failures[tau - 1] as f64 * 100.0 / args.n_boot as f64
-        );
+        ); */
     }
 }
