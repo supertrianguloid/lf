@@ -51,6 +51,8 @@ struct ComputeEffectiveMassArgs {
     n_boot: u32,
     #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 10)]
     binwidth: usize,
+    #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
+    solver_precision: f64,
     #[arg(short, long, value_name = "EFFECTIVE_MASS_T_MAX")]
     effective_mass_t_max: usize,
     #[arg(short, long, value_name = "WILSON_FLOW_FILE")]
@@ -133,7 +135,7 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
             .into_par_iter()
             .map(|_| {
                 let (mu, _) = channel.get_subsample_mean_stderr(args.binwidth);
-                effective_mass(&mu, global_t, tau)
+                effective_mass(&mu, global_t, tau, args.solver_precision)
             })
             .collect();
         let mut effmass_inner = Vec::with_capacity(args.n_boot as usize);

@@ -54,7 +54,12 @@ where
 }
 
 ///Computes the effective mass in a correlator. Tau must be >= 1.
-pub fn effective_mass(correlator: &[f64], global_t: usize, tau: usize) -> Result<f64, SearchError> {
+pub fn effective_mass(
+    correlator: &[f64],
+    global_t: usize,
+    tau: usize,
+    solver_precision: f64,
+) -> Result<f64, SearchError> {
     let mut convergency = SimpleConvergency {
         eps: 1e-15f64,
         max_iter: 300000,
