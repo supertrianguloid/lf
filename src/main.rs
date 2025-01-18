@@ -16,6 +16,12 @@ use std::{
 };
 
 #[derive(Parser, Debug)]
+#[clap(
+    name = "Reshotka",
+    version = "0.0.1",
+    author = "Laurence Sebastian Bowes",
+    about = "A tool for SU(2) analysis"
+)]
 pub struct App {
     #[clap(subcommand)]
     command: Command,
@@ -27,7 +33,7 @@ enum Command {
         #[clap(flatten)]
         args: ComputeEffectiveMassArgs,
     },
-    /// Given a CSV generated from compute-effective-mass, fit a constant to it
+    /// Given a CSV generated from `compute-effective-mass`, fit a constant to it
     FitEffectiveMass {
         #[clap(flatten)]
         args: FitEffectiveMassArgs,
