@@ -5,6 +5,11 @@ use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 
+#[derive(Clone,Copy)]
+pub enum SymmetryType {
+    Symmetric,
+    Antisymmetric
+}
 pub enum WfObservable {
     T,
     E,
@@ -33,6 +38,13 @@ pub struct Observable {
     data: Vec<f64>,
 }
 
+pub struct ObservablePair {
+    each_len_1: usize,
+    each_len_2: usize,
+    nconfs: usize,
+    data_1: Vec<f64>,
+    data_2: Vec<f64>,
+}
 impl Observable {
     /// Returns the inner data at the given configuration number as a slice
     pub fn get_slice(&self, conf_no: usize) -> &[f64] {
@@ -80,18 +92,20 @@ impl Observable {
 }
 
 /// Folds a Vec<f64> of length N into a correlator of length N/2 + 1, ignoring the first point.
-pub fn fold_correlator(mut corr: Vec<f64>, symmetric: bool) -> Vec<f64> {
+pub fn fold_correlator(mut corr: Vec<f64>, symmetry: SymmetryType) -> Vec<f64> {
     for i in 1..((corr.len() / 2) + 1) {
-        corr[i] = 0.5 * (corr[i] + corr[corr.len() - i] * if symmetric { 1.0 } else { -1.0 });
+        corr[i] = 0.5 * (corr[i] + corr[corr.len() - i] * match symmetry {
+            SymmetryType::Symmetric => 1.0,
+            SymmetryType::Antisymmetric => -1.0,
+        });
     }
     corr.truncate(corr.len() / 2 + 1);
     corr.shrink_to_fit();
     corr
 }
 
-/// TODO: Speed this up by moving the flatten earlier.
 pub fn load_channel_from_file_folded(hmc_filename: &str, channel: &str) -> Observable {
-    fn load_channel(hmc_filename: &str, channel: &str, fold_sign: bool) -> Observable {
+    fn load_channel(hmc_filename: &str, channel: &str, symmetry: SymmetryType) -> Observable {
         let data = BufReader::new(File::open(hmc_filename).unwrap())
             .lines()
             .map(|line| line.unwrap())
@@ -104,7 +118,7 @@ pub fn load_channel_from_file_folded(hmc_filename: &str, channel: &str) -> Obser
                     .map(|x| x.parse::<f64>().unwrap())
                     .collect::<Vec<f64>>()
             })
-            .map(|corr| fold_correlator(corr, fold_sign))
+            .map(|corr| fold_correlator(corr, symmetry))
             .collect::<Vec<Vec<f64>>>();
         Observable {
             each_len: data[1].len(),
@@ -113,15 +127,15 @@ pub fn load_channel_from_file_folded(hmc_filename: &str, channel: &str) -> Obser
         }
     }
     match channel {
-        "g5" => load_channel(hmc_filename, channel, true),
-        "id" => load_channel(hmc_filename, channel, true),
-        "gk" => load_channel(hmc_filename, "g1", true).average_with(
-            load_channel(hmc_filename, "g2", true),
-            load_channel(hmc_filename, "g3", true),
+        "g5" => load_channel(hmc_filename, channel, SymmetryType::Symmetric),
+        "id" => load_channel(hmc_filename, channel, SymmetryType::Symmetric),
+        "gk" => load_channel(hmc_filename, "g1", SymmetryType::Symmetric).average_with(
+            load_channel(hmc_filename, "g2", SymmetryType::Symmetric),
+            load_channel(hmc_filename, "g3", SymmetryType::Symmetric),
         ),
-        "g5gk" => load_channel(hmc_filename, "g5g1", true).average_with(
-            load_channel(hmc_filename, "g5g2", true),
-            load_channel(hmc_filename, "g5g3", true),
+        "g5gk" => load_channel(hmc_filename, "g5g1", SymmetryType::Symmetric).average_with(
+            load_channel(hmc_filename, "g5g2", SymmetryType::Symmetric),
+            load_channel(hmc_filename, "g5g3", SymmetryType::Symmetric),
         ),
         _ => todo!("Unknown channel"),
     }
@@ -215,13 +229,13 @@ mod tests {
     #[test]
     fn folding_tests() {
         let x = vec![1.0, 2.0, 3.0, 14.0, 5.0, 6.0];
-        assert_eq!(fold_correlator(x, true), vec![1.0, 4.0, 4.0, 14.0]);
+        assert_eq!(fold_correlator(x, SymmetryType::Symmetric), vec![1.0, 4.0, 4.0, 14.0]);
         let x = vec![1.0, 2.0, 3.0, 4.0];
-        assert_eq!(fold_correlator(x, true), vec![1.0, 3.0, 3.0]);
+        assert_eq!(fold_correlator(x, SymmetryType::Symmetric), vec![1.0, 3.0, 3.0]);
         let x = vec![1.0, 2.0, 3.0, 4.5, 5.0];
-        assert_eq!(fold_correlator(x, true), vec![1.0, 3.5, 3.75]);
+        assert_eq!(fold_correlator(x, SymmetryType::Symmetric), vec![1.0, 3.5, 3.75]);
         let x = vec![1.0, 2.0, 3.0, 2.0, 5.0];
-        assert_eq!(fold_correlator(x, false), vec![1.0, -1.5, 0.5]);
+        assert_eq!(fold_correlator(x, SymmetryType::Antisymmetric), vec![1.0, -1.5, 0.5]);
     }
     #[test]
     fn subsample_tests() {
