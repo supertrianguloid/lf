@@ -61,7 +61,7 @@ pub fn effective_mass(
     solver_precision: f64,
 ) -> Result<f64, SearchError> {
     let mut convergency = SimpleConvergency {
-        eps: 1e-15f64,
+        eps: solver_precision,
         max_iter: 300000,
     };
     let f = |m| eff_mass_eq(correlator, tau, global_t, m);
