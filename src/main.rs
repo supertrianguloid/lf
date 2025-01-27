@@ -47,9 +47,9 @@ struct ComputeEffectiveMassArgs {
     binwidth: usize,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
-    #[arg(short, long, value_name = "EFFECTIVE_MASS_T_MAX")]
+    #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
     effective_mass_t_max: usize,
-    #[arg(short, long, value_name = "EFFECTIVE_MASS_T_MIN")]
+    #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
     effective_mass_t_min: usize,
     #[arg(short, long, value_name = "WILSON_FLOW_FILE")]
     wilson_flow_filename: Option<String>,
