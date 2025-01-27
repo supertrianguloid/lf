@@ -1,19 +1,13 @@
 mod io;
 mod statistics;
-use io::{
-    load_channel_from_file_folded, load_global_t_from_file, load_wf_observable_from_file,
-    Observable, WfObservable,
-};
+use io::{load_channel_from_file_folded, load_global_t_from_file, load_wf_observable_from_file};
 use serde::{Deserialize, Serialize};
 use spectroscopy::effective_mass;
 use statistics::{mean, standard_deviation};
 mod spectroscopy;
 use clap::{Parser, Subcommand};
 use rayon::prelude::*;
-use std::{
-    fs::File,
-    io::{stdin, stdout},
-};
+use std::{fs::File, io::stdout};
 
 #[derive(Parser, Debug)]
 #[clap(
@@ -55,6 +49,8 @@ struct ComputeEffectiveMassArgs {
     solver_precision: f64,
     #[arg(short, long, value_name = "EFFECTIVE_MASS_T_MAX")]
     effective_mass_t_max: usize,
+    #[arg(short, long, value_name = "EFFECTIVE_MASS_T_MIN")]
+    effective_mass_t_min: usize,
     #[arg(short, long, value_name = "WILSON_FLOW_FILE")]
     wilson_flow_filename: Option<String>,
     #[arg(long, value_name = "WILSON_FLOW_NUM_MEASUREMENTS")]
@@ -151,7 +147,7 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
         effmass_error.push(standard_deviation(&effmass_inner, true));
     }
     let mut wtr = csv::Writer::from_writer(stdout());
-    for tau in 2..=args.effective_mass_t_max {
+    for tau in args.effective_mass_t_min..=args.effective_mass_t_max {
         wtr.serialize(EffectiveMassRow {
             tau,
             mass: effmass_mean[tau - 1],
