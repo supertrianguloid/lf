@@ -1,5 +1,5 @@
 use crate::statistics::centred_difference_derivative;
-use crate::statistics::{mean, standard_error};
+use crate::statistics::{mean, standard_error, Measurement};
 use rand::distributions::{Distribution, Uniform};
 use std::fs::File;
 use std::io::BufRead;
@@ -10,24 +10,26 @@ pub enum SymmetryType {
     Symmetric,
     Antisymmetric
 }
+#[allow(non_camel_case_types, dead_code)]
 pub enum WfObservable {
-    T,
+    t,
     E,
-    T2E,
-    ESym,
-    T2Esym,
-    Tc,
+    t2_E,
+    Esym,
+    t2_Esym,
+    TC,
 }
 
 impl WfObservable {
+    //(t,E,t2*E,Esym,t2*Esym,TC)
     pub fn get_offset(&self) -> usize {
         match self {
-            WfObservable::T => 0,
+            WfObservable::t => 0,
             WfObservable::E => 1,
-            WfObservable::T2E => 2,
-            WfObservable::ESym => 3,
-            WfObservable::T2Esym => 4,
-            WfObservable::Tc => 5,
+            WfObservable::t2_E => 2,
+            WfObservable::Esym => 3,
+            WfObservable::t2_Esym => 4,
+            WfObservable::TC => 5,
         }
     }
 }
@@ -163,7 +165,6 @@ pub fn load_wf_observable_from_file(
     nmeas: usize,
 ) -> Observable {
     let mut obs: Vec<f64> = vec![];
-    //(t,E,t2*E,Esym,t2*Esym,TC)
     for line in BufReader::new(File::open(wf_filename).unwrap())
         .lines()
         .map(|line| line.unwrap())
@@ -179,11 +180,11 @@ pub fn load_wf_observable_from_file(
     }
 }
 
-pub fn calculate_w(T2Esym: &Vec<f64>, t: &Vec<f64>, dt: f64) -> Vec<f64> {
+pub fn calculate_w(t2_Esym: &Vec<f64>, t: &Vec<f64>, dt: f64) -> Vec<f64> {
     let mut ans = vec![];
-    let dT2ESym = centred_difference_derivative(T2Esym, dt);
-    for i in 0..dT2ESym.len() {
-        ans.push(dT2ESym[i] * t[i + 1]);
+    let d_t2_Esym = centred_difference_derivative(t2_Esym, dt);
+    for i in 0..d_t2_Esym.len() {
+        ans.push(d_t2_Esym[i] * t[i + 1]);
     }
     ans
 }
@@ -251,19 +252,19 @@ mod tests {
     }
     #[test]
     fn load_wilsonflow_test() {
-        let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservable::T, 1000);
+        let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservable::t, 1000);
         assert_eq!(wf_t.nconfs, 275);
         assert_eq!(wf_t.each_len, 1000);
         assert_eq!(wf_t.data[2], 2e-1);
-        let wf_esym = load_wf_observable_from_file("tests/wf_out", WfObservable::ESym, 1000);
+        let wf_esym = load_wf_observable_from_file("tests/wf_out", WfObservable::Esym, 1000);
         assert_eq!(wf_esym.nconfs, 275);
         assert_eq!(wf_esym.each_len, 1000);
         assert_eq!(wf_esym.data[3], 3.0803808637068719e-01);
     }
     #[test]
     fn calculate_w0_test() {
-        let wf_t2esym = load_wf_observable_from_file("tests/wf_out", WfObservable::T2Esym, 1000);
-        let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservable::T, 1000);
+        let wf_t2esym = load_wf_observable_from_file("tests/wf_out", WfObservable::t2_Esym, 1000);
+        let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservable::t, 1000);
         todo!();
         //assert!(find_w0(wf_esym) - 5.211 < 0.0001);
     }
