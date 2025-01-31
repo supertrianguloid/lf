@@ -1,3 +1,8 @@
+#[derive(PartialEq, Debug)]
+pub struct Measurement {
+    value: f64,
+    error: f64
+}
 pub fn mean(values: &Vec<f64>) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
 }
@@ -16,6 +21,14 @@ pub fn standard_error(values: &Vec<f64>) -> f64 {
         .sum::<f64>()
         .sqrt()
         / values.len() as f64
+}
+
+/// Performs the naive error propagation assuming `v1` and `v2` are independent.
+pub fn propagate_ratio(v1: Measurement, v2: Measurement) -> Measurement{
+    Measurement{
+        value: v1.value / v2.value,
+        error: ((v1.error/v1.value).powi(2) + (v2.error/v2.value).powi(2)).sqrt()
+    }
 }
 
 /// Takes (input: Vec<f64> of length N, dx: f64) and returns output: Vec<f64> of length N-2 representing the derivative of the input, where dx is the underlying step size. The result is 'shifted' to the left by 1 due to the endpoints having undefined derivative, so the derivative at input[1] is output[0] etc.
@@ -83,5 +96,11 @@ mod tests {
         let err = vec![0.3, 0.2];
         let w_mean = (1.6923076923076923, 0.16641005886756874);
         assert_eq!(weighted_mean(&sample, &err), w_mean);
+    }
+    #[test]
+    fn propagate_ratio_test() {
+        let v1 = Measurement{value: 1.45, error: 0.3};
+        let v2 = Measurement{value: 3.24, error: 0.63};
+        assert_eq!(propagate_ratio(v1, v2), Measurement{value: 0.4475308641975308, error: 0.2839274997083719})
     }
 }
