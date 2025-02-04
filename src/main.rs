@@ -5,9 +5,11 @@ use serde::{Deserialize, Serialize};
 use spectroscopy::effective_mass;
 use statistics::{mean, standard_deviation};
 mod spectroscopy;
+mod wilsonflow;
 use clap::{Parser, Subcommand};
 use rayon::prelude::*;
 use std::{fs::File, io::stdout};
+mod observables;
 
 #[derive(Parser, Debug)]
 #[clap(

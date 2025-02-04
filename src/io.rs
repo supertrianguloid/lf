@@ -1,43 +1,13 @@
+use crate::observables::Observable;
 use crate::statistics::centred_difference_derivative;
-use crate::statistics::{mean, standard_error, Measurement};
-use rand::distributions::{Distribution, Uniform};
-use std::fs::File;
-use std::io::BufRead;
-use std::io::BufReader;
+use crate::wilsonflow::WfObservables;
+use std::fs::{read_to_string, File};
+use std::io::{BufRead, BufReader};
 
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub enum SymmetryType {
     Symmetric,
-    Antisymmetric
-}
-#[allow(non_camel_case_types, dead_code)]
-pub enum WfObservable {
-    t,
-    E,
-    t2_E,
-    Esym,
-    t2_Esym,
-    TC,
-}
-
-impl WfObservable {
-    //(t,E,t2*E,Esym,t2*Esym,TC)
-    pub fn get_offset(&self) -> usize {
-        match self {
-            WfObservable::t => 0,
-            WfObservable::E => 1,
-            WfObservable::t2_E => 2,
-            WfObservable::Esym => 3,
-            WfObservable::t2_Esym => 4,
-            WfObservable::TC => 5,
-        }
-    }
-}
-
-pub struct Observable {
-    each_len: usize,
-    nconfs: usize,
-    data: Vec<f64>,
+    Antisymmetric,
 }
 
 pub struct ObservablePair {
@@ -47,59 +17,16 @@ pub struct ObservablePair {
     data_1: Vec<f64>,
     data_2: Vec<f64>,
 }
-impl Observable {
-    /// Returns the inner data at the given configuration number as a slice
-    pub fn get_slice(&self, conf_no: usize) -> &[f64] {
-        &self.data[self.each_len * conf_no..self.each_len * (conf_no + 1)]
-    }
-    pub fn thermalise(mut self, thermalisation: usize) -> Observable {
-        return Observable {
-            data: self.data.split_off(thermalisation * self.each_len),
-            nconfs: self.nconfs - thermalisation,
-            ..self
-        };
-    }
-    pub fn average_with(self, o2: Observable, o3: Observable) -> Observable {
-        let mut new_data = Vec::with_capacity(self.data.len());
-        assert!(self.each_len == o2.each_len && o2.each_len == o3.each_len);
-        assert!(self.nconfs == o2.nconfs && o2.nconfs == o3.nconfs);
-        for i in 0..self.data.len() {
-            new_data.push((self.data[i] + o2.data[i] + o3.data[i]) / 3.0);
-        }
-        Observable {
-            data: new_data,
-            ..self
-        }
-    }
-    pub fn get_subsample_mean_stderr(&self, binsize: usize) -> (Vec<f64>, Vec<f64>) {
-        let length_new = self.nconfs / binsize;
-        let mut mu = vec![];
-        let mut sigma = vec![];
-        let mut rng = rand::thread_rng();
-        let samples: Vec<_> = Uniform::from(0..self.nconfs)
-            .sample_iter(&mut rng)
-            .take(length_new)
-            .collect();
-        for t in 0..(self.each_len) {
-            let mut temp = vec![];
-            for sample in samples.iter() {
-                temp.push(self.get_slice(*sample)[t]);
-            }
-            let mean = mean(&temp);
-            mu.push(mean);
-            sigma.push(standard_error(&temp));
-        }
-        (mu, sigma)
-    }
-}
-
 /// Folds a Vec<f64> of length N into a correlator of length N/2 + 1, ignoring the first point.
 pub fn fold_correlator(mut corr: Vec<f64>, symmetry: SymmetryType) -> Vec<f64> {
     for i in 1..((corr.len() / 2) + 1) {
-        corr[i] = 0.5 * (corr[i] + corr[corr.len() - i] * match symmetry {
-            SymmetryType::Symmetric => 1.0,
-            SymmetryType::Antisymmetric => -1.0,
-        });
+        corr[i] = 0.5
+            * (corr[i]
+                + corr[corr.len() - i]
+                    * match symmetry {
+                        SymmetryType::Symmetric => 1.0,
+                        SymmetryType::Antisymmetric => -1.0,
+                    });
     }
     corr.truncate(corr.len() / 2 + 1);
     corr.shrink_to_fit();
@@ -122,11 +49,11 @@ pub fn load_channel_from_file_folded(hmc_filename: &str, channel: &str) -> Obser
             })
             .map(|corr| fold_correlator(corr, symmetry))
             .collect::<Vec<Vec<f64>>>();
-        Observable {
-            each_len: data[1].len(),
-            nconfs: data.len(),
-            data: data.into_iter().flatten().collect(),
-        }
+        Observable::new(
+            data[1].len(),
+            data.len(),
+            data.into_iter().flatten().collect(),
+        )
     }
     match channel {
         "g5" => load_channel(hmc_filename, channel, SymmetryType::Symmetric),
@@ -159,34 +86,27 @@ pub fn load_global_t_from_file(hmc_filename: &str) -> usize {
         .parse::<usize>()
         .unwrap()
 }
-pub fn load_wf_observable_from_file(
-    wf_filename: &str,
-    channel: WfObservable,
-    nmeas: usize,
-) -> Observable {
-    let mut obs: Vec<f64> = vec![];
-    for line in BufReader::new(File::open(wf_filename).unwrap())
-        .lines()
-        .map(|line| line.unwrap())
-        .filter(|line| line.contains("WILSONFLOW"))
-    {
-        let line: Vec<_> = line.split(" ").collect();
-        obs.push(line[3 + channel.get_offset()].parse::<f64>().unwrap());
-    }
-    Observable {
-        each_len: nmeas,
-        nconfs: obs.len() / nmeas,
-        data: obs,
-    }
-}
+// pub fn load_wf_observables_from_file(wf_filename: &str) -> Observable {
+//     let mut obs: Vec<f64> = vec![];
+//     let wf_file = read_to_string(wf_filename).unwrap();
+//     for line in BufReader::new(File::open(wf_filename).unwrap())
+//         .lines()
+//         .map(|line| line.unwrap())
+//         .filter(|line| line.contains("WILSONFLOW"))
+//     {
+//         let line: Vec<_> = line.split(" ").collect();
+//         obs.push(line[3 + channel.get_offset()].parse::<f64>().unwrap());
+//     }
+// }
 
-pub fn calculate_w(t2_Esym: &Vec<f64>, t: &Vec<f64>, dt: f64) -> Vec<f64> {
-    let mut ans = vec![];
+pub fn calculate_w(t2_Esym: &Vec<f64>, t: &Vec<f64>) -> Vec<f64> {
+    let mut w = vec![];
+    let dt = t[1] - t[0];
     let d_t2_Esym = centred_difference_derivative(t2_Esym, dt);
     for i in 0..d_t2_Esym.len() {
-        ans.push(d_t2_Esym[i] * t[i + 1]);
+        w.push(d_t2_Esym[i] * t[i + 1]);
     }
-    ans
+    w
 }
 
 #[cfg(test)]
@@ -197,75 +117,48 @@ mod tests {
         assert_eq!(load_global_t_from_file("tests/out_test"), 32);
     }
     #[test]
-    fn observable_slice_test() {
-        let mut obs = Observable {
-            each_len: 2,
-            nconfs: 3,
-            data: vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0],
-        };
-        assert_eq!(obs.get_slice(0), &vec![1.0, 2.0]);
-        assert_eq!(obs.get_slice(1), &vec![3.0, 3.0]);
-        assert_eq!(obs.get_slice(2), &vec![4.0, 5.0]);
-        let obs = obs.thermalise(2);
-        assert_eq!(obs.get_slice(0), &vec![4.0, 5.0]);
-    }
-    #[test]
-    fn average_observable_test() {
-        let obs = Observable {
-            each_len: 2,
-            nconfs: 3,
-            data: vec![1.0, 1.0, 3.0, 3.0, 4.0, 5.0],
-        };
-        let o2 = Observable {
-            data: vec![1.0, 1.0, 2.0, 2.0, 3.0, 4.0],
-            ..obs
-        };
-        let o3 = Observable {
-            data: vec![4.0, 10.0, 2.0, 2.0, 3.0, 4.0],
-            ..obs
-        };
-        let avg = obs.average_with(o2, o3);
-        assert_eq!(avg.get_slice(0), &vec![2.0, 4.0]);
-    }
-    #[test]
     fn folding_tests() {
         let x = vec![1.0, 2.0, 3.0, 14.0, 5.0, 6.0];
-        assert_eq!(fold_correlator(x, SymmetryType::Symmetric), vec![1.0, 4.0, 4.0, 14.0]);
-        let x = vec![1.0, 2.0, 3.0, 4.0];
-        assert_eq!(fold_correlator(x, SymmetryType::Symmetric), vec![1.0, 3.0, 3.0]);
-        let x = vec![1.0, 2.0, 3.0, 4.5, 5.0];
-        assert_eq!(fold_correlator(x, SymmetryType::Symmetric), vec![1.0, 3.5, 3.75]);
-        let x = vec![1.0, 2.0, 3.0, 2.0, 5.0];
-        assert_eq!(fold_correlator(x, SymmetryType::Antisymmetric), vec![1.0, -1.5, 0.5]);
-    }
-    #[test]
-    fn subsample_tests() {
-        let o = Observable {
-            each_len: 2,
-            nconfs: 3,
-            data: vec![2.0, 1.0, 2.0, 1.0, 2.0, 1.0],
-        };
         assert_eq!(
-            o.get_subsample_mean_stderr(1),
-            (vec![2.0, 1.0], vec![0.0, 0.0])
+            fold_correlator(x, SymmetryType::Symmetric),
+            vec![1.0, 4.0, 4.0, 14.0]
+        );
+        let x = vec![1.0, 2.0, 3.0, 4.0];
+        assert_eq!(
+            fold_correlator(x, SymmetryType::Symmetric),
+            vec![1.0, 3.0, 3.0]
+        );
+        let x = vec![1.0, 2.0, 3.0, 4.5, 5.0];
+        assert_eq!(
+            fold_correlator(x, SymmetryType::Symmetric),
+            vec![1.0, 3.5, 3.75]
+        );
+        let x = vec![1.0, 2.0, 3.0, 2.0, 5.0];
+        assert_eq!(
+            fold_correlator(x, SymmetryType::Antisymmetric),
+            vec![1.0, -1.5, 0.5]
         );
     }
-    #[test]
-    fn load_wilsonflow_test() {
-        let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservable::t, 1000);
-        assert_eq!(wf_t.nconfs, 275);
-        assert_eq!(wf_t.each_len, 1000);
-        assert_eq!(wf_t.data[2], 2e-1);
-        let wf_esym = load_wf_observable_from_file("tests/wf_out", WfObservable::Esym, 1000);
-        assert_eq!(wf_esym.nconfs, 275);
-        assert_eq!(wf_esym.each_len, 1000);
-        assert_eq!(wf_esym.data[3], 3.0803808637068719e-01);
-    }
-    #[test]
-    fn calculate_w0_test() {
-        let wf_t2esym = load_wf_observable_from_file("tests/wf_out", WfObservable::t2_Esym, 1000);
-        let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservable::t, 1000);
-        todo!();
-        //assert!(find_w0(wf_esym) - 5.211 < 0.0001);
-    }
+    // #[test]
+    // fn load_wilsonflow_test() {
+    //     let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservables::t, 1000);
+    //     assert_eq!(wf_t.nconfs, 275);
+    //     assert_eq!(wf_t.each_len, 1000);
+    //     assert_eq!(wf_t.data[2], 2e-1);
+    //     let wf_esym = load_wf_observable_from_file("tests/wf_out", WfObservables::Esym, 1000);
+    //     assert_eq!(wf_esym.nconfs, 275);
+    //     assert_eq!(wf_esym.each_len, 1000);
+    //     assert_eq!(wf_esym.data[3], 3.0803808637068719e-01);
+    // }
+    // #[test]
+    // fn calculate_w0_test() {
+    //     let wf_t2esym = load_wf_observable_from_file("tests/wf_out", WfObservable::t2_Esym, 1000);
+    //     let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservable::t, 1000);
+    // dbg!(calculate_w(
+    //     &wf_t2esym.get_subsample_mean_stderr(100).0,
+    //     &wf_t.get_subsample_mean_stderr(100).0
+    // ));
+    // dbg!(wf_t.data);
+    //assert!(find_w0(wf_esym) - 5.211 < 0.0001);
+    // }
 }

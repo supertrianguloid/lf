@@ -1,4 +1,3 @@
-use crate::io::Observable;
 use nalgebra::DVector;
 use roots::{find_root_brent, SearchError, SimpleConvergency};
 use varpro::model::SeparableModel;
