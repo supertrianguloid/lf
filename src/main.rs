@@ -161,6 +161,11 @@ struct EffectiveMassFit {
     #[serde(rename = "Error")]
     error: f64,
 }
+#[derive(Debug, Serialize)]
+struct BootstrappedFit {
+    #[serde(rename = "Sample")]
+    sample: f64,
+}
 
 fn main() {
     let app = App::parse();
@@ -283,7 +288,11 @@ fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
             Some(val) => results_g.push(val),
         };
     }
-    println!("{:?}", results_g)
+    let mut wtr = csv::Writer::from_writer(stdout());
+    for sample in results_g {
+        wtr.serialize(BootstrappedFit { sample }).unwrap();
+        wtr.flush().unwrap();
+    }
 }
 fn bootstrap_fits_command(args: BootstrapFitsArgs) {
     let channel = load_channel_from_file_folded(&args.hmc_filename, &args.channel)
@@ -314,7 +323,11 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
             Some(val) => results_g.push(val),
         };
     }
-    println!("{:?}", results_g);
+    let mut wtr = csv::Writer::from_writer(stdout());
+    for sample in results_g {
+        wtr.serialize(BootstrappedFit { sample }).unwrap();
+        wtr.flush().unwrap();
+    }
 }
 fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
     let numerator_channel =
@@ -366,5 +379,9 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
             Some(val) => results_g.push(val),
         };
     }
-    println!("{:?}", results_g);
+    let mut wtr = csv::Writer::from_writer(stdout());
+    for sample in results_g {
+        wtr.serialize(BootstrappedFit { sample }).unwrap();
+        wtr.flush().unwrap();
+    }
 }
