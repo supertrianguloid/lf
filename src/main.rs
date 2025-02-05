@@ -49,6 +49,10 @@ enum Command {
         #[clap(flatten)]
         args: BootstrapFitsRatioArgs,
     },
+    CalculateW0 {
+        #[clap(flatten)]
+        args: CalculateW0Args,
+    },
 }
 
 #[derive(Parser, Debug)]
@@ -93,6 +97,17 @@ struct BootstrapFitsWithWFArgs {
     effective_mass_t_max: usize,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
     effective_mass_t_min: usize,
+    #[arg(long, value_name = "WILSON_FLOW_FILE")]
+    wilson_flow_filename: String,
+    #[arg(long, value_name = "W_THERMALISATION", default_value_t = 0)]
+    w_thermalisation: usize,
+}
+#[derive(Parser, Debug)]
+struct CalculateW0Args {
+    #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
+    n_boot: u32,
+    #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
+    binwidth: usize,
     #[arg(long, value_name = "WILSON_FLOW_FILE")]
     wilson_flow_filename: String,
     #[arg(long, value_name = "W_THERMALISATION", default_value_t = 0)]
@@ -175,6 +190,7 @@ fn main() {
         Command::BootstrapFitsWithWF { args } => bootstrap_fits_with_wf_command(args),
         Command::BootstrapFits { args } => bootstrap_fits_command(args),
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
+        Command::CalculateW0 { args } => calculate_w0_proc(args),
     }
 }
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
@@ -381,6 +397,33 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
     }
     let mut wtr = csv::Writer::from_writer(stdout());
     for sample in results_g {
+        wtr.serialize(BootstrappedFit { sample }).unwrap();
+        wtr.flush().unwrap();
+    }
+}
+fn calculate_w0_proc(args: CalculateW0Args) {
+    let wf =
+        load_wf_observables_from_file(&args.wilson_flow_filename).thermalise(args.w_thermalisation);
+    let results = (0..args.n_boot)
+        .into_par_iter()
+        .map(|_| {
+            let samples = get_samples(wf.t2_esym.nconfs, args.binwidth);
+            let w0 = calculate_w0(
+                calculate_w(
+                    &wf.get_subsample_mean_stderr_from_samples(
+                        samples.clone(),
+                        wilsonflow::WilsonFlowObservables::T2Esym,
+                    )
+                    .values,
+                    &wf.t,
+                ),
+                1.0,
+            );
+            w0
+        })
+        .collect::<Vec<f64>>();
+    let mut wtr = csv::Writer::from_writer(stdout());
+    for sample in results {
         wtr.serialize(BootstrappedFit { sample }).unwrap();
         wtr.flush().unwrap();
     }
