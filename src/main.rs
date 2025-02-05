@@ -101,6 +101,8 @@ struct BootstrapFitsWithWFArgs {
     wilson_flow_filename: String,
     #[arg(long, value_name = "W_THERMALISATION", default_value_t = 0)]
     w_thermalisation: usize,
+    #[arg(long, value_name = "W_REFERENCE", default_value_t = 1.0)]
+    w_ref: f64,
 }
 #[derive(Parser, Debug)]
 struct CalculateW0Args {
@@ -112,6 +114,8 @@ struct CalculateW0Args {
     wilson_flow_filename: String,
     #[arg(long, value_name = "W_THERMALISATION", default_value_t = 0)]
     w_thermalisation: usize,
+    #[arg(long, value_name = "W_REFERENCE", default_value_t = 1.0)]
+    w_ref: f64,
 }
 
 #[derive(Parser, Debug)]
@@ -282,7 +286,7 @@ fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
                     .values,
                     &wf.t,
                 ),
-                1.0,
+                args.w_ref,
             );
             let mut masses = vec![];
             let mu = channel
@@ -411,13 +415,13 @@ fn calculate_w0_proc(args: CalculateW0Args) {
             let w0 = calculate_w0(
                 calculate_w(
                     &wf.get_subsample_mean_stderr_from_samples(
-                        samples.clone(),
+                        samples,
                         wilsonflow::WilsonFlowObservables::T2Esym,
                     )
                     .values,
                     &wf.t,
                 ),
-                1.0,
+                args.w_ref,
             );
             w0
         })
