@@ -1,8 +1,8 @@
-use nalgebra::DVector;
+// use nalgebra::DVector;
 use roots::{find_root_brent, SearchError, SimpleConvergency};
-use varpro::model::SeparableModel;
-use varpro::prelude::*;
-use varpro::solvers::levmar::{FitResult, LevMarProblemBuilder, LevMarSolver};
+// use varpro::model::SeparableModel;
+// use varpro::prelude::*;
+// use varpro::solvers::levmar::{FitResult, LevMarProblemBuilder, LevMarSolver};
 
 //fn fit_exponential(corr: Correlator) -> FitResult<SeparableModel<f64>, false> {
 //fn exp_decay(t: &DVector<f64>, m: f64) -> DVector<f64> {

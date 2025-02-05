@@ -1,21 +1,13 @@
 use crate::observables::Observable;
-use crate::statistics::centred_difference_derivative;
-use crate::wilsonflow::WfObservables;
+use crate::wilsonflow::{WilsonFlow, WilsonFlowObservables};
 use std::fs::{read_to_string, File};
 use std::io::{BufRead, BufReader};
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 pub enum SymmetryType {
     Symmetric,
     Antisymmetric,
-}
-
-pub struct ObservablePair {
-    each_len_1: usize,
-    each_len_2: usize,
-    nconfs: usize,
-    data_1: Vec<f64>,
-    data_2: Vec<f64>,
 }
 /// Folds a Vec<f64> of length N into a correlator of length N/2 + 1, ignoring the first point.
 pub fn fold_correlator(mut corr: Vec<f64>, symmetry: SymmetryType) -> Vec<f64> {
@@ -35,11 +27,12 @@ pub fn fold_correlator(mut corr: Vec<f64>, symmetry: SymmetryType) -> Vec<f64> {
 
 pub fn load_channel_from_file_folded(hmc_filename: &str, channel: &str) -> Observable {
     fn load_channel(hmc_filename: &str, channel: &str, symmetry: SymmetryType) -> Observable {
+        let channel = format!(" {}=", channel);
         let data = BufReader::new(File::open(hmc_filename).unwrap())
             .lines()
             .map(|line| line.unwrap())
             .filter(|line| line.contains("DEFAULT_SEMWALL TRIPLET"))
-            .filter(|line| line.contains(channel))
+            .filter(|line| line.contains(&channel))
             .map(|line| {
                 line.trim()
                     .split(" ")
@@ -86,27 +79,68 @@ pub fn load_global_t_from_file(hmc_filename: &str) -> usize {
         .parse::<usize>()
         .unwrap()
 }
-// pub fn load_wf_observables_from_file(wf_filename: &str) -> Observable {
-//     let mut obs: Vec<f64> = vec![];
-//     let wf_file = read_to_string(wf_filename).unwrap();
-//     for line in BufReader::new(File::open(wf_filename).unwrap())
-//         .lines()
-//         .map(|line| line.unwrap())
-//         .filter(|line| line.contains("WILSONFLOW"))
-//     {
-//         let line: Vec<_> = line.split(" ").collect();
-//         obs.push(line[3 + channel.get_offset()].parse::<f64>().unwrap());
-//     }
-// }
+pub fn load_wf_observables_from_file(wf_filename: &str) -> WilsonFlow {
+    let mut t: Vec<_> = vec![];
+    let mut t2_esym: Vec<_> = vec![];
+    let mut tc: Vec<_> = vec![];
+    let wf_file = read_to_string(wf_filename).unwrap();
+    let mut minlength = usize::MAX;
+    for block in wf_file
+        .split("[IO][0]SU2 quaternion representation")
+        .skip(1)
+    {
+        // println!("{}", block);
+        // println!("NEXT BLOCK");
+        let mut t_l: Vec<f64> = vec![];
+        let mut t2_esym_l: Vec<f64> = vec![];
+        let mut tc_l: Vec<f64> = vec![];
 
-pub fn calculate_w(t2_Esym: &Vec<f64>, t: &Vec<f64>) -> Vec<f64> {
-    let mut w = vec![];
-    let dt = t[1] - t[0];
-    let d_t2_Esym = centred_difference_derivative(t2_Esym, dt);
-    for i in 0..d_t2_Esym.len() {
-        w.push(d_t2_Esym[i] * t[i + 1]);
+        for line in block.lines().filter(|line| line.contains("WILSONFLOW")) {
+            let line: Vec<_> = line.split(" ").collect();
+            t_l.push(
+                line[WilsonFlowObservables::T.get_offset()]
+                    .parse::<f64>()
+                    .unwrap(),
+            );
+            t2_esym_l.push(
+                line[WilsonFlowObservables::T2Esym.get_offset()]
+                    .parse::<f64>()
+                    .unwrap(),
+            );
+            tc_l.push(
+                line[WilsonFlowObservables::TC.get_offset()]
+                    .parse::<f64>()
+                    .unwrap(),
+            );
+        }
+        if t_l.len() < minlength {
+            minlength = t_l.len();
+        }
+        t.push(t_l);
+        t2_esym.push(t2_esym_l);
+        tc.push(tc_l);
     }
-    w
+
+    let mut tc_g = vec![];
+    let mut t2_esym_g = vec![];
+
+    for i in 0..t.len() {
+        t[i].truncate(minlength);
+        t2_esym[i].truncate(minlength);
+        tc[i].truncate(minlength);
+    }
+    for i in 0..t.len() {
+        t2_esym[i].iter().for_each(|elem| t2_esym_g.push(*elem));
+        tc[i].iter().for_each(|elem| tc_g.push(*elem));
+    }
+    assert!(t.iter().all(|w| { w == &t[0] }));
+
+    let wf = WilsonFlow::new(
+        t[0].clone(),
+        Observable::new(minlength, t.len(), t2_esym_g),
+        Observable::new(minlength, t.len(), tc_g),
+    );
+    wf
 }
 
 #[cfg(test)]
@@ -115,6 +149,12 @@ mod tests {
     #[test]
     fn load_global_t_test() {
         assert_eq!(load_global_t_from_file("tests/out_test"), 32);
+    }
+    #[test]
+    fn load_file_test() {
+        let channel = load_channel_from_file_folded("tests/out_test", "g5");
+        assert_eq!(channel.each_len, 17);
+        assert_eq!(channel.nconfs, 499);
     }
     #[test]
     fn folding_tests() {
@@ -139,26 +179,27 @@ mod tests {
             vec![1.0, -1.5, 0.5]
         );
     }
+    #[test]
+    fn load_wilsonflow_test() {
+        let wf = load_wf_observables_from_file("tests/wf_out");
+        assert_eq!(wf.t.len(), 1001);
+        assert_eq!(wf.t[2], 2e-1);
+        assert_eq!(wf.t2_esym.nconfs, 275);
+        assert_eq!(wf.t2_esym.data[3], 2.7723427773361856e-02);
+    }
     // #[test]
-    // fn load_wilsonflow_test() {
-    //     let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservables::t, 1000);
-    //     assert_eq!(wf_t.nconfs, 275);
-    //     assert_eq!(wf_t.each_len, 1000);
-    //     assert_eq!(wf_t.data[2], 2e-1);
-    //     let wf_esym = load_wf_observable_from_file("tests/wf_out", WfObservables::Esym, 1000);
-    //     assert_eq!(wf_esym.nconfs, 275);
-    //     assert_eq!(wf_esym.each_len, 1000);
-    //     assert_eq!(wf_esym.data[3], 3.0803808637068719e-01);
-    // }
-    // #[test]
-    // fn calculate_w0_test() {
-    //     let wf_t2esym = load_wf_observable_from_file("tests/wf_out", WfObservable::t2_Esym, 1000);
-    //     let wf_t = load_wf_observable_from_file("tests/wf_out", WfObservable::t, 1000);
-    // dbg!(calculate_w(
-    //     &wf_t2esym.get_subsample_mean_stderr(100).0,
-    //     &wf_t.get_subsample_mean_stderr(100).0
-    // ));
-    // dbg!(wf_t.data);
-    //assert!(find_w0(wf_esym) - 5.211 < 0.0001);
+    // fn calculate_w_test() {
+    //     let wf = load_wf_observables_from_file("tests/wf_out");
+    //     println!(
+    //         "{:?}",
+    //         calculate_w(
+    //             &wf.get_subsample_mean_stderr_from_sample(
+    //                 get_sample(wf.TC.nconfs, 10),
+    //                 WilsonFlowObservables::t2_Esym,
+    //             )
+    //             .values,
+    //             &wf.t,
+    //         )
+    //     );
     // }
 }

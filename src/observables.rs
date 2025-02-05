@@ -1,10 +1,22 @@
 use crate::statistics::{mean, standard_error};
 use rand::distributions::{Distribution, Uniform};
 
+#[derive(PartialEq, Debug)]
+pub struct Measurement {
+    pub values: Vec<f64>,
+    pub errors: Vec<f64>,
+}
+impl Measurement {
+    pub fn new(values: Vec<f64>, errors: Vec<f64>) -> Self {
+        Self { values, errors }
+    }
+}
+
+#[derive(Debug)]
 pub struct Observable {
-    each_len: usize,
-    nconfs: usize,
-    data: Vec<f64>,
+    pub each_len: usize,
+    pub nconfs: usize,
+    pub data: Vec<f64>,
 }
 impl Observable {
     /// Returns the inner data at the given configuration number as a slice
@@ -30,15 +42,14 @@ impl Observable {
             ..self
         }
     }
-    pub fn get_subsample_mean_stderr(&self, binsize: usize) -> (Vec<f64>, Vec<f64>) {
-        let length_new = self.nconfs / binsize;
+
+    pub fn get_subsample_mean_stderr(&self, binsize: usize) -> Measurement {
+        self.get_subsample_mean_stderr_from_samples(get_samples(self.nconfs, binsize))
+    }
+
+    pub fn get_subsample_mean_stderr_from_samples(&self, samples: Vec<usize>) -> Measurement {
         let mut mu = vec![];
         let mut sigma = vec![];
-        let mut rng = rand::thread_rng();
-        let samples: Vec<_> = Uniform::from(0..self.nconfs)
-            .sample_iter(&mut rng)
-            .take(length_new)
-            .collect();
         for t in 0..(self.each_len) {
             let mut temp = vec![];
             for sample in samples.iter() {
@@ -48,8 +59,9 @@ impl Observable {
             mu.push(mean);
             sigma.push(standard_error(&temp));
         }
-        (mu, sigma)
+        Measurement::new(mu, sigma)
     }
+
     pub fn new(each_len: usize, nconfs: usize, data: Vec<f64>) -> Observable {
         Observable {
             each_len,
@@ -58,13 +70,17 @@ impl Observable {
         }
     }
 }
-pub struct ObservablePair {
-    each_len_1: usize,
-    each_len_2: usize,
-    nconfs: usize,
-    data_1: Vec<f64>,
-    data_2: Vec<f64>,
+
+pub fn get_samples(length: usize, binsize: usize) -> Vec<usize> {
+    let length_new = length / binsize;
+    let mut rng = rand::thread_rng();
+    let samples: Vec<_> = Uniform::from(0..length)
+        .sample_iter(&mut rng)
+        .take(length_new)
+        .collect();
+    samples
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,7 +124,7 @@ mod tests {
         };
         assert_eq!(
             o.get_subsample_mean_stderr(1),
-            (vec![2.0, 1.0], vec![0.0, 0.0])
+            Measurement::new(vec![2.0, 1.0], vec![0.0, 0.0])
         );
     }
 }
