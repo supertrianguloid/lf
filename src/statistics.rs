@@ -22,7 +22,7 @@ pub fn standard_error(values: &Vec<f64>) -> f64 {
         .sqrt()
         / values.len() as f64
 }
-
+#[allow(dead_code)]
 /// Performs the naive error propagation assuming `v1` and `v2` are independent.
 pub fn propagate_ratio(v1: Measurement, v2: Measurement) -> Measurement {
     Measurement {
@@ -47,7 +47,7 @@ pub fn line_of_best_fit(x: &[f64], y: &[f64]) -> (f64, f64) {
     (m, ybar - m * xbar)
 }
 
-/// Takes (input: Vec<f64> of length N, dx: f64) and returns output: Vec<f64> of length N-2 representing the derivative of the input, where dx is the underlying step size. The result is 'shifted' to the left by 1 due to the endpoints having undefined derivative, so the derivative at input[1] is output[0] etc.
+/// Takes (input: `Vec<f64>` of length N, `dx: f64`) and returns `output: Vec<f64>` of length N-2 representing the derivative of the input, where dx is the underlying step size. The result is 'shifted' to the left by 1 due to the endpoints having undefined derivative, so the derivative at `input[1]` is `output[0]` etc.
 pub fn centred_difference_derivative(input: &Vec<f64>, dx: f64) -> Vec<f64> {
     let mut result = Vec::with_capacity(input.len() - 2);
     for i in 1..(input.len() - 1) {

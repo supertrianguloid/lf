@@ -9,7 +9,7 @@ pub enum SymmetryType {
     Symmetric,
     Antisymmetric,
 }
-/// Folds a Vec<f64> of length N into a correlator of length N/2 + 1, ignoring the first point.
+/// Folds a `Vec<f64>` of length N into a correlator of length N/2 + 1, ignoring the first point.
 pub fn fold_correlator(mut corr: Vec<f64>, symmetry: SymmetryType) -> Vec<f64> {
     for i in 1..((corr.len() / 2) + 1) {
         corr[i] = 0.5
