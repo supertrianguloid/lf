@@ -1,7 +1,15 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(PartialEq, Debug)]
 pub struct Measurement {
     value: f64,
     error: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HistogramRow {
+    bin_centre: f64,
+    frequency: usize,
 }
 pub fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
@@ -72,6 +80,36 @@ pub fn weighted_mean(sample: &[f64], errors: &[f64]) -> (f64, f64) {
         sum_weight_times_sample / sum_weights,
         (1.0 / sum_weights).sqrt(),
     )
+}
+
+pub fn bin(data: &[f64], nbins: usize) -> Vec<HistogramRow> {
+    let lower = data.iter().min_by(|a, b| a.total_cmp(b)).unwrap();
+    let upper = data.iter().max_by(|a, b| a.total_cmp(b)).unwrap();
+    let stepsize = (upper - lower) / (nbins as f64);
+    let mut bin_ranges = vec![];
+    for i in 0..(nbins + 1) {
+        bin_ranges.push(lower + (i as f64) * stepsize);
+    }
+    let mut freq: Vec<usize> = vec![0; nbins];
+    freq[0] = data.iter().filter(|x| *x == lower).count();
+    let windows: Vec<_> = bin_ranges.windows(2).collect();
+    for i in 0..nbins {
+        freq[i] = data
+            .iter()
+            .filter(|x| **x > windows[i][0] && **x <= windows[i][1])
+            .count();
+    }
+    bin_ranges.truncate(nbins);
+    let bin_centres: Vec<f64> = bin_ranges.iter().map(|x| x + stepsize / 2.0).collect();
+    assert!(freq.len() == bin_ranges.len());
+    let mut histogram = vec![];
+    for i in 0..freq.len() {
+        histogram.push(HistogramRow {
+            bin_centre: bin_centres[i],
+            frequency: freq[i],
+        })
+    }
+    histogram
 }
 
 #[cfg(test)]

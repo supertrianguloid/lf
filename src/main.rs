@@ -9,7 +9,7 @@ use observables::{get_samples, Measurement};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use spectroscopy::effective_mass;
-use statistics::{mean, standard_deviation};
+use statistics::{bin, mean, standard_deviation, HistogramRow};
 use std::{fs::File, io::stdout};
 use wilsonflow::{calculate_w, calculate_w0};
 
@@ -53,6 +53,10 @@ enum Command {
         #[clap(flatten)]
         args: CalculateW0Args,
     },
+    Histogram {
+        #[clap(flatten)]
+        args: HistogramArgs,
+    },
 }
 
 #[derive(Parser, Debug)]
@@ -80,6 +84,11 @@ struct FitEffectiveMassArgs {
     t2: usize,
 }
 
+#[derive(Parser, Debug)]
+struct HistogramArgs {
+    csv_filename: String,
+    nbins: usize,
+}
 #[derive(Parser, Debug)]
 struct BootstrapFitsWithWFArgs {
     hmc_filename: String,
@@ -180,7 +189,7 @@ struct EffectiveMassFit {
     #[serde(rename = "Error")]
     error: f64,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct BootstrappedFit {
     #[serde(rename = "Sample")]
     sample: f64,
@@ -195,6 +204,7 @@ fn main() {
         Command::BootstrapFits { args } => bootstrap_fits_command(args),
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
         Command::CalculateW0 { args } => calculate_w0_proc(args),
+        Command::Histogram { args } => histogram(args),
     }
 }
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
@@ -429,6 +439,22 @@ fn calculate_w0_proc(args: CalculateW0Args) {
     let mut wtr = csv::Writer::from_writer(stdout());
     for sample in results {
         wtr.serialize(BootstrappedFit { sample }).unwrap();
+        wtr.flush().unwrap();
+    }
+}
+
+fn histogram(args: HistogramArgs) {
+    let mut sample: Vec<f64> = vec![];
+    let mut rdr = csv::Reader::from_reader(File::open(args.csv_filename).unwrap());
+    for result in rdr.deserialize() {
+        let record: BootstrappedFit = result.unwrap();
+        sample.push(record.sample);
+    }
+    sample.sort_by(f64::total_cmp);
+    let hist = bin(&sample, args.nbins);
+    let mut wtr = csv::Writer::from_writer(stdout());
+    for hist_row in hist {
+        wtr.serialize(hist_row).unwrap();
         wtr.flush().unwrap();
     }
 }
