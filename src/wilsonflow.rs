@@ -68,7 +68,7 @@ impl WilsonFlow {
         }
     }
 }
-pub fn calculate_w(t2_esym: &Vec<f64>, t: &Vec<f64>) -> W {
+pub fn calculate_w(t2_esym: &[f64], t: &[f64]) -> W {
     let mut w = vec![];
     let dt = t[1] - t[0];
     let d_t2_esym = centred_difference_derivative(t2_esym, dt);

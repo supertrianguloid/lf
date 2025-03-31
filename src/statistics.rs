@@ -14,14 +14,14 @@ pub struct HistogramRow {
 pub fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
 }
-pub fn standard_deviation(values: &Vec<f64>, corrected: bool) -> f64 {
+pub fn standard_deviation(values: &[f64], corrected: bool) -> f64 {
     let mean = mean(values);
     (values.iter().map(|x| (x - mean).powi(2)).sum::<f64>()
         / (values.len() as f64 - if corrected { 1.0 } else { 0.0 }))
     .sqrt()
 }
 
-pub fn standard_error(values: &Vec<f64>) -> f64 {
+pub fn standard_error(values: &[f64]) -> f64 {
     let mean = mean(values);
     values
         .iter()
@@ -48,15 +48,15 @@ pub fn line_of_best_fit(x: &[f64], y: &[f64]) -> (f64, f64) {
         numerator += (x[i] - xbar) * (y[i] - ybar);
     }
     let mut denominator = 0.0;
-    for i in 0..x.len() {
-        denominator += (x[i] - xbar).powi(2);
+    for i in x {
+        denominator += (i - xbar).powi(2);
     }
     let m = numerator / denominator;
     (m, ybar - m * xbar)
 }
 
-/// Takes (input: `Vec<f64>` of length N, `dx: f64`) and returns `output: Vec<f64>` of length N-2 representing the derivative of the input, where dx is the underlying step size. The result is 'shifted' to the left by 1 due to the endpoints having undefined derivative, so the derivative at `input[1]` is `output[0]` etc.
-pub fn centred_difference_derivative(input: &Vec<f64>, dx: f64) -> Vec<f64> {
+/// Takes (input: `[f64]` of length N, `dx: f64`) and returns `output: Vec<f64>` of length N-2 representing the derivative of the input, where dx is the underlying step size. The result is 'shifted' to the left by 1 due to the endpoints having undefined derivative, so the derivative at `input[1]` is `output[0]` etc.
+pub fn centred_difference_derivative(input: &[f64], dx: f64) -> Vec<f64> {
     let mut result = Vec::with_capacity(input.len() - 2);
     for i in 1..(input.len() - 1) {
         result.push((input[i + 1] - input[i - 1]) / (2.0 * dx));

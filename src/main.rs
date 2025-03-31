@@ -9,7 +9,7 @@ use observables::{get_samples, Measurement};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use spectroscopy::effective_mass;
-use statistics::{bin, mean, standard_deviation, HistogramRow};
+use statistics::{bin, mean, standard_deviation};
 use std::{fs::File, io::stdout};
 use wilsonflow::{calculate_w, calculate_w0};
 
@@ -203,8 +203,8 @@ fn main() {
         Command::BootstrapFitsWithWF { args } => bootstrap_fits_with_wf_command(args),
         Command::BootstrapFits { args } => bootstrap_fits_command(args),
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
-        Command::CalculateW0 { args } => calculate_w0_proc(args),
-        Command::Histogram { args } => histogram(args),
+        Command::CalculateW0 { args } => calculate_w0_command(args),
+        Command::Histogram { args } => histogram_command(args),
     }
 }
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
@@ -415,14 +415,14 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
         wtr.flush().unwrap();
     }
 }
-fn calculate_w0_proc(args: CalculateW0Args) {
+fn calculate_w0_command(args: CalculateW0Args) {
     let wf =
         load_wf_observables_from_file(&args.wilson_flow_filename).thermalise(args.w_thermalisation);
     let results = (0..args.n_boot)
         .into_par_iter()
         .map(|_| {
             let samples = get_samples(wf.t2_esym.nconfs, args.binwidth);
-            let w0 = calculate_w0(
+            calculate_w0(
                 calculate_w(
                     &wf.get_subsample_mean_stderr_from_samples(
                         samples,
@@ -432,8 +432,7 @@ fn calculate_w0_proc(args: CalculateW0Args) {
                     &wf.t,
                 ),
                 args.w_ref,
-            );
-            w0
+            )
         })
         .collect::<Vec<f64>>();
     let mut wtr = csv::Writer::from_writer(stdout());
@@ -443,7 +442,7 @@ fn calculate_w0_proc(args: CalculateW0Args) {
     }
 }
 
-fn histogram(args: HistogramArgs) {
+fn histogram_command(args: HistogramArgs) {
     let mut sample: Vec<f64> = vec![];
     let mut rdr = csv::Reader::from_reader(File::open(args.csv_filename).unwrap());
     for result in rdr.deserialize() {

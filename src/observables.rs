@@ -24,11 +24,11 @@ impl Observable {
         &self.data[self.each_len * conf_no..self.each_len * (conf_no + 1)]
     }
     pub fn thermalise(mut self, thermalisation: usize) -> Observable {
-        return Observable {
+        Observable {
             data: self.data.split_off(thermalisation * self.each_len),
             nconfs: self.nconfs - thermalisation,
             ..self
-        };
+        }
     }
     pub fn average_with(self, o2: Observable, o3: Observable) -> Observable {
         let mut new_data = Vec::with_capacity(self.data.len());

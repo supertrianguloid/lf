@@ -135,12 +135,11 @@ pub fn load_wf_observables_from_file(wf_filename: &str) -> WilsonFlow {
     }
     assert!(t.iter().all(|w| { w == &t[0] }));
 
-    let wf = WilsonFlow::new(
+    WilsonFlow::new(
         t[0].clone(),
         Observable::new(minlength, t.len(), t2_esym_g),
         Observable::new(minlength, t.len(), tc_g),
-    );
-    wf
+    )
 }
 
 #[cfg(test)]
