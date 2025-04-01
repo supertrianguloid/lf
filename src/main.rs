@@ -321,8 +321,8 @@ fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
     let mut wtr = csv::Writer::from_writer(stdout());
     for sample in results_g {
         wtr.serialize(BootstrappedFit { sample }).unwrap();
-        wtr.flush().unwrap();
     }
+    wtr.flush().unwrap();
 }
 fn bootstrap_fits_command(args: BootstrapFitsArgs) {
     let channel = load_channel_from_file_folded(&args.hmc_filename, &args.channel)
@@ -356,8 +356,8 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
     let mut wtr = csv::Writer::from_writer(stdout());
     for sample in results_g {
         wtr.serialize(BootstrappedFit { sample }).unwrap();
-        wtr.flush().unwrap();
     }
+    wtr.flush().unwrap();
 }
 fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
     let numerator_channel =
@@ -412,8 +412,8 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
     let mut wtr = csv::Writer::from_writer(stdout());
     for sample in results_g {
         wtr.serialize(BootstrappedFit { sample }).unwrap();
-        wtr.flush().unwrap();
     }
+    wtr.flush().unwrap();
 }
 fn calculate_w0_command(args: CalculateW0Args) {
     let wf =
@@ -438,8 +438,8 @@ fn calculate_w0_command(args: CalculateW0Args) {
     let mut wtr = csv::Writer::from_writer(stdout());
     for sample in results {
         wtr.serialize(BootstrappedFit { sample }).unwrap();
-        wtr.flush().unwrap();
     }
+    wtr.flush().unwrap();
 }
 
 fn histogram_command(args: HistogramArgs) {
@@ -454,6 +454,6 @@ fn histogram_command(args: HistogramArgs) {
     let mut wtr = csv::Writer::from_writer(stdout());
     for hist_row in hist {
         wtr.serialize(hist_row).unwrap();
-        wtr.flush().unwrap();
     }
+    wtr.flush().unwrap();
 }
