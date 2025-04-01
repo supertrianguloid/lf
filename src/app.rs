@@ -56,16 +56,38 @@ enum Command {
 }
 
 #[derive(Parser, Debug)]
-struct ComputeEffectiveMassArgs {
-    hmc_filename: String,
-    #[arg(short, long, value_name = "CHANNEL")]
-    channel: String,
+struct HMCArgs {
+    filename: String,
     #[arg(short, long, value_name = "THERMALISATION", default_value_t = 0)]
     thermalisation: usize,
+}
+
+#[derive(Parser, Debug)]
+struct WFArgs {
+    #[arg(long, value_name = "WILSON_FLOW_FILE")]
+    filename: String,
+    #[arg(long, value_name = "W_THERMALISATION", default_value_t = 0)]
+    thermalisation: usize,
+    #[arg(long, value_name = "W_REFERENCE", default_value_t = 1.0)]
+    w_ref: f64,
+}
+
+#[derive(Parser, Debug)]
+struct BinBootstrapArgs {
     #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
     n_boot: u32,
     #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
     binwidth: usize,
+}
+
+#[derive(Parser, Debug)]
+struct ComputeEffectiveMassArgs {
+    #[clap(flatten)]
+    hmc: HMCArgs,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
+    #[arg(short, long, value_name = "CHANNEL")]
+    channel: String,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
@@ -73,6 +95,7 @@ struct ComputeEffectiveMassArgs {
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
     effective_mass_t_min: usize,
 }
+
 #[derive(Parser, Debug)]
 struct FitEffectiveMassArgs {
     csv_filename: String,
@@ -87,53 +110,37 @@ struct HistogramArgs {
 }
 #[derive(Parser, Debug)]
 struct BootstrapFitsWithWFArgs {
-    hmc_filename: String,
+    #[clap(flatten)]
+    hmc: HMCArgs,
+    #[clap(flatten)]
+    wf: WFArgs,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
     #[arg(short, long, value_name = "CHANNEL")]
     channel: String,
-    #[arg(short, long, value_name = "THERMALISATION", default_value_t = 0)]
-    thermalisation: usize,
-    #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
-    n_boot: u32,
-    #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
-    binwidth: usize,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
     effective_mass_t_max: usize,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
     effective_mass_t_min: usize,
-    #[arg(long, value_name = "WILSON_FLOW_FILE")]
-    wilson_flow_filename: String,
-    #[arg(long, value_name = "W_THERMALISATION", default_value_t = 0)]
-    w_thermalisation: usize,
-    #[arg(long, value_name = "W_REFERENCE", default_value_t = 1.0)]
-    w_ref: f64,
 }
 #[derive(Parser, Debug)]
 struct CalculateW0Args {
-    #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
-    n_boot: u32,
-    #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
-    binwidth: usize,
-    #[arg(long, value_name = "WILSON_FLOW_FILE")]
-    wilson_flow_filename: String,
-    #[arg(long, value_name = "W_THERMALISATION", default_value_t = 0)]
-    w_thermalisation: usize,
-    #[arg(long, value_name = "W_REFERENCE", default_value_t = 1.0)]
-    w_ref: f64,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
+    #[clap(flatten)]
+    wf: WFArgs,
 }
 
 #[derive(Parser, Debug)]
 struct BootstrapFitsArgs {
-    hmc_filename: String,
+    #[clap(flatten)]
+    hmc: HMCArgs,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
     #[arg(short, long, value_name = "CHANNEL")]
     channel: String,
-    #[arg(short, long, value_name = "THERMALISATION", default_value_t = 0)]
-    thermalisation: usize,
-    #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
-    n_boot: u32,
-    #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
-    binwidth: usize,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
@@ -144,17 +151,14 @@ struct BootstrapFitsArgs {
 
 #[derive(Parser, Debug)]
 struct BootstrapFitsRatioArgs {
-    hmc_filename: String,
+    #[clap(flatten)]
+    hmc: HMCArgs,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
     #[arg(short, long, value_name = "NUMERATOR_CHANNEL")]
     numerator_channel: String,
     #[arg(short, long, value_name = "DENOMINATOR_CHANNEL")]
     denominator_channel: String,
-    #[arg(short, long, value_name = "THERMALISATION", default_value_t = 0)]
-    thermalisation: usize,
-    #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
-    n_boot: u32,
-    #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
-    binwidth: usize,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
     #[arg(long, value_name = "NUMERATOR_EFFECTIVE_MASS_T_MAX")]
@@ -215,26 +219,26 @@ fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
 }
 
 fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
-    let channel = load_channel_from_file_folded(&args.hmc_filename, &args.channel)
-        .thermalise(args.thermalisation);
-    let global_t = load_global_t_from_file(&args.hmc_filename);
+    let channel = load_channel_from_file_folded(&args.hmc.filename, &args.channel)
+        .thermalise(args.hmc.thermalisation);
+    let global_t = load_global_t_from_file(&args.hmc.filename);
 
     let mut solve_failures = vec![];
     let mut effmass_mean = vec![];
     let mut effmass_error = vec![];
     assert_eq!(global_t, (channel.each_len - 1) * 2);
     for tau in 1..=args.effective_mass_t_max {
-        let results: Vec<Result<f64, roots::SearchError>> = (0..args.n_boot)
+        let results: Vec<Result<f64, roots::SearchError>> = (0..args.boot.n_boot)
             .into_par_iter()
             .map(|_| {
                 let Measurement {
                     values: mu,
                     errors: _,
-                } = channel.get_subsample_mean_stderr(args.binwidth);
+                } = channel.get_subsample_mean_stderr(args.boot.binwidth);
                 effective_mass(&mu, global_t, tau, args.solver_precision)
             })
             .collect();
-        let mut effmass_inner = Vec::with_capacity(args.n_boot as usize);
+        let mut effmass_inner = Vec::with_capacity(args.boot.n_boot as usize);
         let mut nfailures = 0;
         for result in results {
             match result {
@@ -252,7 +256,7 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
             tau,
             mass: effmass_mean[tau - 1],
             error: effmass_error[tau - 1],
-            failures: solve_failures[tau - 1] as f64 * 100.0 / args.n_boot as f64,
+            failures: solve_failures[tau - 1] as f64 * 100.0 / args.boot.n_boot as f64,
         })
         .unwrap();
         wtr.flush().unwrap();
@@ -260,17 +264,16 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
 }
 
 fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
-    let channel = load_channel_from_file_folded(&args.hmc_filename, &args.channel)
-        .thermalise(args.thermalisation);
-    let wf =
-        load_wf_observables_from_file(&args.wilson_flow_filename).thermalise(args.w_thermalisation);
+    let channel = load_channel_from_file_folded(&args.hmc.filename, &args.channel)
+        .thermalise(args.hmc.thermalisation);
+    let wf = load_wf_observables_from_file(&args.wf.filename).thermalise(args.wf.thermalisation);
     assert_eq!(channel.nconfs, wf.tc.nconfs);
-    let global_t = load_global_t_from_file(&args.hmc_filename);
+    let global_t = load_global_t_from_file(&args.hmc.filename);
     let mut results_g = vec![];
-    let results = (0..args.n_boot)
+    let results = (0..args.boot.n_boot)
         .into_par_iter()
         .map(|_| {
-            let samples = get_samples(channel.nconfs, args.binwidth);
+            let samples = get_samples(channel.nconfs, args.boot.binwidth);
             let w0 = calculate_w0(
                 calculate_w(
                     &wf.get_subsample_mean_stderr_from_samples(
@@ -280,7 +283,7 @@ fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
                     .values,
                     &wf.t,
                 ),
-                args.w_ref,
+                args.wf.w_ref,
             );
             let mut masses = vec![];
             let mu = channel
@@ -309,14 +312,14 @@ fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
     wtr.flush().unwrap();
 }
 fn bootstrap_fits_command(args: BootstrapFitsArgs) {
-    let channel = load_channel_from_file_folded(&args.hmc_filename, &args.channel)
-        .thermalise(args.thermalisation);
-    let global_t = load_global_t_from_file(&args.hmc_filename);
+    let channel = load_channel_from_file_folded(&args.hmc.filename, &args.channel)
+        .thermalise(args.hmc.thermalisation);
+    let global_t = load_global_t_from_file(&args.hmc.filename);
     let mut results_g = vec![];
-    let results = (0..args.n_boot)
+    let results = (0..args.boot.n_boot)
         .into_par_iter()
         .map(|_| {
-            let samples = get_samples(channel.nconfs, args.binwidth);
+            let samples = get_samples(channel.nconfs, args.boot.binwidth);
             let mut masses = vec![];
             let mu = channel
                 .get_subsample_mean_stderr_from_samples(samples)
@@ -345,17 +348,17 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
 }
 fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
     let numerator_channel =
-        load_channel_from_file_folded(&args.hmc_filename, &args.numerator_channel)
-            .thermalise(args.thermalisation);
+        load_channel_from_file_folded(&args.hmc.filename, &args.numerator_channel)
+            .thermalise(args.hmc.thermalisation);
     let denominator_channel =
-        load_channel_from_file_folded(&args.hmc_filename, &args.denominator_channel)
-            .thermalise(args.thermalisation);
-    let global_t = load_global_t_from_file(&args.hmc_filename);
+        load_channel_from_file_folded(&args.hmc.filename, &args.denominator_channel)
+            .thermalise(args.hmc.thermalisation);
+    let global_t = load_global_t_from_file(&args.hmc.filename);
     let mut results_g = vec![];
-    let results = (0..args.n_boot)
+    let results = (0..args.boot.n_boot)
         .into_par_iter()
         .map(|_| {
-            let samples = get_samples(numerator_channel.nconfs, args.binwidth);
+            let samples = get_samples(numerator_channel.nconfs, args.boot.binwidth);
 
             let mut num_masses = vec![];
             let num_mu = numerator_channel
@@ -400,12 +403,11 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
     wtr.flush().unwrap();
 }
 fn calculate_w0_command(args: CalculateW0Args) {
-    let wf =
-        load_wf_observables_from_file(&args.wilson_flow_filename).thermalise(args.w_thermalisation);
-    let results = (0..args.n_boot)
+    let wf = load_wf_observables_from_file(&args.wf.filename).thermalise(args.wf.thermalisation);
+    let results = (0..args.boot.n_boot)
         .into_par_iter()
         .map(|_| {
-            let samples = get_samples(wf.t2_esym.nconfs, args.binwidth);
+            let samples = get_samples(wf.t2_esym.nconfs, args.boot.binwidth);
             calculate_w0(
                 calculate_w(
                     &wf.get_subsample_mean_stderr_from_samples(
@@ -415,7 +417,7 @@ fn calculate_w0_command(args: CalculateW0Args) {
                     .values,
                     &wf.t,
                 ),
-                args.w_ref,
+                args.wf.w_ref,
             )
         })
         .collect::<Vec<f64>>();
