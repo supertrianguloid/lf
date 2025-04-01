@@ -1,6 +1,7 @@
 use crate::observables::Observable;
 use crate::wilsonflow::{WilsonFlow, WilsonFlowObservables};
 use std::fs::{read_to_string, File};
+
 use std::io::{BufRead, BufReader};
 
 #[derive(Clone, Copy)]
@@ -186,19 +187,4 @@ mod tests {
         assert_eq!(wf.t2_esym.nconfs, 275);
         assert_eq!(wf.t2_esym.data[3], 2.7723427773361856e-02);
     }
-    // #[test]
-    // fn calculate_w_test() {
-    //     let wf = load_wf_observables_from_file("tests/wf_out");
-    //     println!(
-    //         "{:?}",
-    //         calculate_w(
-    //             &wf.get_subsample_mean_stderr_from_sample(
-    //                 get_sample(wf.TC.nconfs, 10),
-    //                 WilsonFlowObservables::t2_Esym,
-    //             )
-    //             .values,
-    //             &wf.t,
-    //         )
-    //     );
-    // }
 }
