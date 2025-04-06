@@ -4,7 +4,7 @@ use crate::io::{
 };
 use crate::observables::Measurement;
 use crate::spectroscopy::effective_mass;
-use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
+use crate::statistics::{bin, mean, standard_deviation, standard_error, weighted_mean};
 use crate::wilsonflow::{calculate_w, calculate_w0, WilsonFlowObservables};
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::generate;
@@ -205,7 +205,7 @@ struct EffectiveMassFit {
     error: f64,
 }
 #[derive(Debug, Serialize, Deserialize)]
-struct BootstrappedFit {
+struct BootstrapSample {
     #[serde(rename = "Sample")]
     sample: f64,
 }
@@ -323,7 +323,7 @@ fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
     }
     let mut wtr = csv::Writer::from_writer(stdout());
     for sample in results_g {
-        wtr.serialize(BootstrappedFit { sample }).unwrap();
+        wtr.serialize(BootstrapSample { sample }).unwrap();
     }
     wtr.flush().unwrap();
 }
@@ -358,7 +358,7 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
     }
     let mut wtr = csv::Writer::from_writer(stdout());
     for sample in results_g {
-        wtr.serialize(BootstrappedFit { sample }).unwrap();
+        wtr.serialize(BootstrapSample { sample }).unwrap();
     }
     wtr.flush().unwrap();
 }
@@ -414,7 +414,7 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
     }
     let mut wtr = csv::Writer::from_writer(stdout());
     for sample in results_g {
-        wtr.serialize(BootstrappedFit { sample }).unwrap();
+        wtr.serialize(BootstrapSample { sample }).unwrap();
     }
     wtr.flush().unwrap();
 }
@@ -440,7 +440,7 @@ fn calculate_w0_command(args: CalculateW0Args) {
         .collect::<Vec<f64>>();
     let mut wtr = csv::Writer::from_writer(stdout());
     for sample in results {
-        wtr.serialize(BootstrappedFit { sample }).unwrap();
+        wtr.serialize(BootstrapSample { sample }).unwrap();
     }
     wtr.flush().unwrap();
 }
@@ -449,7 +449,7 @@ fn histogram_command(args: HistogramArgs) {
     let mut sample: Vec<f64> = vec![];
     let mut rdr = csv::Reader::from_reader(File::open(args.csv_filename).unwrap());
     for result in rdr.deserialize() {
-        let record: BootstrappedFit = result.unwrap();
+        let record: BootstrapSample = result.unwrap();
         sample.push(record.sample);
     }
     sample.sort_by(f64::total_cmp);
@@ -462,19 +462,27 @@ fn histogram_command(args: HistogramArgs) {
 }
 
 fn bootstrap_error_command(args: BootstrapErrorArgs) {
-    // let mut sample: Vec<f64> = vec![];
-    // let mut rdr = csv::Reader::from_reader(File::open(args.csv_filename).unwrap());
-    // for result in rdr.deserialize() {
-    //     let record: BootstrappedFit = result.unwrap();
-    //     sample.push(record.sample);
-    // }
-    // let mut results_g: Vec<_> = vec![];
-    // let results = (0..args.n_boot)
-    //     .into_par_iter()
-    //     .map(|_| {
-    //         panic!();
-    //     })
-    //     .collect::<Vec<f64>>();
+    let mut sample: Vec<f64> = vec![];
+    let mut rdr = csv::Reader::from_reader(File::open(args.csv_filename).unwrap());
+    for result in rdr.deserialize() {
+        let record: BootstrapSample = result.unwrap();
+        sample.push(record.sample);
+    }
+    let results = (0..args.n_boot)
+        .into_par_iter()
+        .map(|_| {
+            let mut tmp = vec![];
+            for index in get_samples(sample.len(), 1) {
+                tmp.push(sample[index]);
+            }
+            standard_error(&tmp)
+        })
+        .collect::<Vec<f64>>();
+    let mut wtr = csv::Writer::from_writer(stdout());
+    for sample in results {
+        wtr.serialize(BootstrapSample { sample }).unwrap();
+    }
+    wtr.flush().unwrap();
 }
 
 pub fn parser() {
