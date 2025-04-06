@@ -8,3 +8,12 @@ pub fn get_samples(length: usize, binsize: usize) -> Vec<usize> {
         .collect();
     samples
 }
+
+#[cfg(test)]
+#[test]
+fn test_bootstrap_binning_samples() {
+    assert_eq!(get_samples(100, 2).len(), 50);
+}
+fn test_bootstrap_no_binning_samples() {
+    assert_eq!(get_samples(100, 1).len(), 100);
+}
