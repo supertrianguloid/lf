@@ -1,11 +1,12 @@
-mod app;
+mod bootstrap;
 mod io;
 mod observables;
+mod parser;
 mod spectroscopy;
 mod statistics;
 mod wilsonflow;
-use app::app;
+use parser::parser;
 
 fn main() {
-    app();
+    parser();
 }

@@ -92,8 +92,8 @@ pub fn calculate_w0(w: W, wref: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bootstrap::get_samples;
     use crate::io::load_wf_observables_from_file;
-    use crate::observables::get_samples;
     #[test]
     fn calculate_w0_test() {
         let wf = load_wf_observables_from_file("tests/wf_out");

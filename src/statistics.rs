@@ -111,7 +111,6 @@ pub fn bin(data: &[f64], nbins: usize) -> Vec<HistogramRow> {
     }
     histogram
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

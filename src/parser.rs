@@ -1,11 +1,14 @@
+use crate::bootstrap::get_samples;
 use crate::io::{
     load_channel_from_file_folded, load_global_t_from_file, load_wf_observables_from_file,
 };
-use crate::observables::{get_samples, Measurement};
+use crate::observables::Measurement;
 use crate::spectroscopy::effective_mass;
 use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
 use crate::wilsonflow::{calculate_w, calculate_w0, WilsonFlowObservables};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::generate;
+use clap_complete_nushell::Nushell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{fs::File, io::stdout};
@@ -53,6 +56,11 @@ enum Command {
         #[clap(flatten)]
         args: HistogramArgs,
     },
+    BootstrapError {
+        #[clap(flatten)]
+        args: BootstrapErrorArgs,
+    },
+    GenerateCompletions {},
 }
 
 #[derive(Parser, Debug)]
@@ -65,9 +73,9 @@ struct HMCArgs {
 #[derive(Parser, Debug)]
 struct WFArgs {
     #[arg(long, value_name = "WILSON_FLOW_FILE")]
-    filename: String,
+    wf_filename: String,
     #[arg(long, value_name = "W_THERMALISATION", default_value_t = 0)]
-    thermalisation: usize,
+    wf_thermalisation: usize,
     #[arg(long, value_name = "W_REFERENCE", default_value_t = 1.0)]
     w_ref: f64,
 }
@@ -155,9 +163,9 @@ struct BootstrapFitsRatioArgs {
     hmc: HMCArgs,
     #[clap(flatten)]
     boot: BinBootstrapArgs,
-    #[arg(short, long, value_name = "NUMERATOR_CHANNEL")]
+    #[arg(long, value_name = "NUMERATOR_CHANNEL")]
     numerator_channel: String,
-    #[arg(short, long, value_name = "DENOMINATOR_CHANNEL")]
+    #[arg(long, value_name = "DENOMINATOR_CHANNEL")]
     denominator_channel: String,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
@@ -169,6 +177,13 @@ struct BootstrapFitsRatioArgs {
     denominator_effective_mass_t_max: usize,
     #[arg(long, value_name = "DENOMINATOR_EFFECTIVE_MASS_T_MIN")]
     denominator_effective_mass_t_min: usize,
+}
+
+#[derive(Parser, Debug)]
+struct BootstrapErrorArgs {
+    csv_filename: String,
+    #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
+    n_boot: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -266,7 +281,8 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
 fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
     let channel = load_channel_from_file_folded(&args.hmc.filename, &args.channel)
         .thermalise(args.hmc.thermalisation);
-    let wf = load_wf_observables_from_file(&args.wf.filename).thermalise(args.wf.thermalisation);
+    let wf =
+        load_wf_observables_from_file(&args.wf.wf_filename).thermalise(args.wf.wf_thermalisation);
     assert_eq!(channel.nconfs, wf.tc.nconfs);
     let global_t = load_global_t_from_file(&args.hmc.filename);
     let mut results_g = vec![];
@@ -403,7 +419,8 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
     wtr.flush().unwrap();
 }
 fn calculate_w0_command(args: CalculateW0Args) {
-    let wf = load_wf_observables_from_file(&args.wf.filename).thermalise(args.wf.thermalisation);
+    let wf =
+        load_wf_observables_from_file(&args.wf.wf_filename).thermalise(args.wf.wf_thermalisation);
     let results = (0..args.boot.n_boot)
         .into_par_iter()
         .map(|_| {
@@ -443,7 +460,24 @@ fn histogram_command(args: HistogramArgs) {
     }
     wtr.flush().unwrap();
 }
-pub fn app() {
+
+fn bootstrap_error_command(args: BootstrapErrorArgs) {
+    // let mut sample: Vec<f64> = vec![];
+    // let mut rdr = csv::Reader::from_reader(File::open(args.csv_filename).unwrap());
+    // for result in rdr.deserialize() {
+    //     let record: BootstrappedFit = result.unwrap();
+    //     sample.push(record.sample);
+    // }
+    // let mut results_g: Vec<_> = vec![];
+    // let results = (0..args.n_boot)
+    //     .into_par_iter()
+    //     .map(|_| {
+    //         panic!();
+    //     })
+    //     .collect::<Vec<f64>>();
+}
+
+pub fn parser() {
     let app = App::parse();
     match app.command {
         Command::ComputeEffectiveMass { args } => compute_effective_mass_command(args),
@@ -453,5 +487,9 @@ pub fn app() {
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
         Command::CalculateW0 { args } => calculate_w0_command(args),
         Command::Histogram { args } => histogram_command(args),
+        Command::BootstrapError { args } => bootstrap_error_command(args),
+        Command::GenerateCompletions {} => {
+            generate(Nushell, &mut App::command(), "reshotka", &mut stdout())
+        }
     }
 }

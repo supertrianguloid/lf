@@ -1,5 +1,5 @@
+use crate::bootstrap::get_samples;
 use crate::statistics::{mean, standard_error};
-use rand::distributions::{Distribution, Uniform};
 
 #[derive(PartialEq, Debug)]
 pub struct Measurement {
@@ -69,16 +69,6 @@ impl Observable {
             data,
         }
     }
-}
-
-pub fn get_samples(length: usize, binsize: usize) -> Vec<usize> {
-    let length_new = length / binsize;
-    let mut rng = rand::thread_rng();
-    let samples: Vec<_> = Uniform::from(0..length)
-        .sample_iter(&mut rng)
-        .take(length_new)
-        .collect();
-    samples
 }
 
 #[cfg(test)]
