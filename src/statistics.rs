@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Debug)]
@@ -16,7 +17,7 @@ pub fn mean(values: &[f64]) -> f64 {
 }
 pub fn standard_deviation(values: &[f64], corrected: bool) -> f64 {
     let mean = mean(values);
-    (values.iter().map(|x| (x - mean).powi(2)).sum::<f64>()
+    (values.par_iter().map(|x| (x - mean).powi(2)).sum::<f64>()
         / (values.len() as f64 - if corrected { 1.0 } else { 0.0 }))
     .sqrt()
 }
