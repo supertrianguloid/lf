@@ -472,10 +472,11 @@ fn bootstrap_error_command(args: BootstrapErrorArgs) {
         .into_par_iter()
         .map(|_| {
             let mut tmp = vec![];
-            for index in get_samples(sample.len(), 1) {
+            let boot = get_samples(sample.len(), 1);
+            for index in boot {
                 tmp.push(sample[index]);
             }
-            standard_error(&tmp)
+            standard_deviation(&tmp, true)
         })
         .collect::<Vec<f64>>();
     let mut wtr = csv::Writer::from_writer(stdout());
