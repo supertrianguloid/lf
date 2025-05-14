@@ -4,7 +4,7 @@ use crate::io::{
 };
 use crate::observables::Measurement;
 use crate::spectroscopy::effective_mass;
-use crate::statistics::{bin, mean, standard_deviation, standard_error, weighted_mean};
+use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
 use crate::wilsonflow::{calculate_w, calculate_w0, WilsonFlowObservables};
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::generate;
@@ -86,6 +86,13 @@ struct BinBootstrapArgs {
     n_boot: u32,
     #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
     binwidth: usize,
+    #[arg(
+        short,
+        long,
+        value_name = "DOUBLE_BOOTSTRAP_SAMPLES",
+        default_value_t = 1
+    )]
+    n_boot_double: u32,
 }
 
 #[derive(Parser, Debug)]
@@ -210,6 +217,21 @@ struct BootstrapSample {
     sample: f64,
 }
 
+fn write_bootstrap(results: Vec<Option<f64>>) {
+    let mut results_g = vec![];
+    for result in results {
+        match result {
+            None => {}
+            Some(val) => results_g.push(val),
+        };
+    }
+    let mut wtr = csv::Writer::from_writer(stdout());
+    for sample in results_g {
+        wtr.serialize(BootstrapSample { sample }).unwrap();
+    }
+    wtr.flush().unwrap();
+}
+
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
     let mut tau = vec![];
     let mut mass = vec![];
@@ -285,7 +307,6 @@ fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
         load_wf_observables_from_file(&args.wf.wf_filename).thermalise(args.wf.wf_thermalisation);
     assert_eq!(channel.nconfs, wf.tc.nconfs);
     let global_t = load_global_t_from_file(&args.hmc.filename);
-    let mut results_g = vec![];
     let results = (0..args.boot.n_boot)
         .into_par_iter()
         .map(|_| {
@@ -300,7 +321,7 @@ fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
                     &wf.t,
                 ),
                 args.wf.w_ref,
-            );
+            )?;
             let mut masses = vec![];
             let mu = channel
                 .get_subsample_mean_stderr_from_samples(samples)
@@ -315,23 +336,12 @@ fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
             Some(mean(&masses) * w0)
         })
         .collect::<Vec<Option<f64>>>();
-    for result in results {
-        match result {
-            None => {}
-            Some(val) => results_g.push(val),
-        };
-    }
-    let mut wtr = csv::Writer::from_writer(stdout());
-    for sample in results_g {
-        wtr.serialize(BootstrapSample { sample }).unwrap();
-    }
-    wtr.flush().unwrap();
+    write_bootstrap(results);
 }
 fn bootstrap_fits_command(args: BootstrapFitsArgs) {
     let channel = load_channel_from_file_folded(&args.hmc.filename, &args.channel)
         .thermalise(args.hmc.thermalisation);
     let global_t = load_global_t_from_file(&args.hmc.filename);
-    let mut results_g = vec![];
     let results = (0..args.boot.n_boot)
         .into_par_iter()
         .map(|_| {
@@ -350,17 +360,7 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
             Some(mean(&masses))
         })
         .collect::<Vec<Option<f64>>>();
-    for result in results {
-        match result {
-            None => {}
-            Some(val) => results_g.push(val),
-        };
-    }
-    let mut wtr = csv::Writer::from_writer(stdout());
-    for sample in results_g {
-        wtr.serialize(BootstrapSample { sample }).unwrap();
-    }
-    wtr.flush().unwrap();
+    write_bootstrap(results);
 }
 fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
     let numerator_channel =
@@ -370,7 +370,6 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
         load_channel_from_file_folded(&args.hmc.filename, &args.denominator_channel)
             .thermalise(args.hmc.thermalisation);
     let global_t = load_global_t_from_file(&args.hmc.filename);
-    let mut results_g = vec![];
     let results = (0..args.boot.n_boot)
         .into_par_iter()
         .map(|_| {
@@ -406,17 +405,7 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
             Some(mean(&num_masses) / mean(&denom_masses))
         })
         .collect::<Vec<Option<f64>>>();
-    for result in results {
-        match result {
-            None => {}
-            Some(val) => results_g.push(val),
-        };
-    }
-    let mut wtr = csv::Writer::from_writer(stdout());
-    for sample in results_g {
-        wtr.serialize(BootstrapSample { sample }).unwrap();
-    }
-    wtr.flush().unwrap();
+    write_bootstrap(results);
 }
 fn calculate_w0_command(args: CalculateW0Args) {
     let wf =
@@ -437,12 +426,8 @@ fn calculate_w0_command(args: CalculateW0Args) {
                 args.wf.w_ref,
             )
         })
-        .collect::<Vec<f64>>();
-    let mut wtr = csv::Writer::from_writer(stdout());
-    for sample in results {
-        wtr.serialize(BootstrapSample { sample }).unwrap();
-    }
-    wtr.flush().unwrap();
+        .collect::<Vec<Option<f64>>>();
+    write_bootstrap(results);
 }
 
 fn histogram_command(args: HistogramArgs) {

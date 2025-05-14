@@ -78,15 +78,15 @@ pub fn calculate_w(t2_esym: &[f64], t: &[f64]) -> W {
     W::new(w, t[1..(t.len() - 1)].to_vec())
 }
 
-pub fn calculate_w0(w: W, wref: f64) -> f64 {
+pub fn calculate_w0(w: W, wref: f64) -> Option<f64> {
     let num_points = 2;
-    let pos = w.w.iter().position(|x| *x > wref).unwrap();
+    let pos = w.w.iter().position(|x| *x > wref)?;
     if w.w[pos] == wref {
-        w.t[pos - 1].sqrt()
+        Some(w.t[pos - 1].sqrt())
     } else {
         let window = pos - num_points..pos + (num_points - 1);
         let (m, c) = line_of_best_fit(&w.t[window.clone()], &w.w[window]);
-        ((wref - c) / m).sqrt()
+        Some(((wref - c) / m).sqrt())
     }
 }
 #[cfg(test)]
