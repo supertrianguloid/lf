@@ -1,4 +1,6 @@
 use crate::bootstrap::get_samples;
+use crate::io::{load_channel_from_file_folded, load_global_t_from_file};
+use crate::parser::HMCArgs;
 use crate::statistics::{mean, standard_error};
 
 #[derive(PartialEq, Debug)]
@@ -9,6 +11,22 @@ pub struct Measurement {
 impl Measurement {
     pub fn new(values: Vec<f64>, errors: Vec<f64>) -> Self {
         Self { values, errors }
+    }
+}
+
+#[derive(Debug)]
+pub struct ObservableCalculation {
+    pub obs: Observable,
+    pub global_t: usize,
+}
+
+impl ObservableCalculation {
+    pub fn load(args: &HMCArgs, channel: String) -> Self {
+        ObservableCalculation {
+            obs: load_channel_from_file_folded(&args.filename, &channel)
+                .thermalise(args.thermalisation),
+            global_t: load_global_t_from_file(&args.filename),
+        }
     }
 }
 
@@ -44,10 +62,10 @@ impl Observable {
     }
 
     pub fn get_subsample_mean_stderr(&self, binsize: usize) -> Measurement {
-        self.get_subsample_mean_stderr_from_samples(get_samples(self.nconfs, binsize))
+        self.get_subsample_mean_stderr_from_samples(&get_samples(self.nconfs, binsize))
     }
 
-    pub fn get_subsample_mean_stderr_from_samples(&self, samples: Vec<usize>) -> Measurement {
+    pub fn get_subsample_mean_stderr_from_samples(&self, samples: &[usize]) -> Measurement {
         let mut mu = vec![];
         let mut sigma = vec![];
         for t in 0..(self.each_len) {

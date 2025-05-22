@@ -1,17 +1,15 @@
-use crate::bootstrap::get_samples;
-use crate::io::{
-    load_channel_from_file_folded, load_global_t_from_file, load_wf_observables_from_file,
-};
-use crate::observables::Measurement;
-use crate::spectroscopy::effective_mass;
+use crate::bootstrap::{bootstrap, BootstrapResult};
+use crate::observables::{Measurement, ObservableCalculation};
+use crate::spectroscopy::{effective_mass, effective_mass_all_t};
 use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
-use crate::wilsonflow::{calculate_w, calculate_w0, WilsonFlowObservables};
+use crate::wilsonflow::{calculate_w0_from_samples, WilsonFlowCalculation};
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::generate;
 use clap_complete_nushell::Nushell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{fs::File, io::stdout};
+
 #[derive(Parser, Debug)]
 #[clap(
     name = "Reshotka",
@@ -31,14 +29,10 @@ enum Command {
         #[clap(flatten)]
         args: ComputeEffectiveMassArgs,
     },
-    /// Given a CSV generated from `compute-effective-mass`, fit a constant to it
+    /// Given an effective mass generated from `compute-effective-mass`, fit a constant to it
     FitEffectiveMass {
         #[clap(flatten)]
         args: FitEffectiveMassArgs,
-    },
-    BootstrapFitsWithWF {
-        #[clap(flatten)]
-        args: BootstrapFitsWithWFArgs,
     },
     BootstrapFits {
         #[clap(flatten)]
@@ -56,43 +50,35 @@ enum Command {
         #[clap(flatten)]
         args: HistogramArgs,
     },
-    BootstrapError {
-        #[clap(flatten)]
-        args: BootstrapErrorArgs,
-    },
     GenerateCompletions {},
 }
 
 #[derive(Parser, Debug)]
-struct HMCArgs {
-    filename: String,
+pub struct HMCArgs {
+    pub filename: String,
     #[arg(short, long, value_name = "THERMALISATION", default_value_t = 0)]
-    thermalisation: usize,
+    pub thermalisation: usize,
 }
 
 #[derive(Parser, Debug)]
-struct WFArgs {
-    #[arg(long, value_name = "WILSON_FLOW_FILE")]
-    wf_filename: String,
+#[group(requires = "wf_filename")]
+pub struct WFArgs {
+    #[arg(long, value_name = "WILSON_FLOW_FILE", required = false)]
+    pub wf_filename: String,
     #[arg(long, value_name = "W_THERMALISATION", default_value_t = 0)]
-    wf_thermalisation: usize,
+    pub wf_thermalisation: usize,
     #[arg(long, value_name = "W_REFERENCE", default_value_t = 1.0)]
-    w_ref: f64,
+    pub w_ref: f64,
 }
 
 #[derive(Parser, Debug)]
-struct BinBootstrapArgs {
+pub struct BinBootstrapArgs {
     #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
-    n_boot: u32,
+    pub n_boot: usize,
     #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
-    binwidth: usize,
-    #[arg(
-        short,
-        long,
-        value_name = "DOUBLE_BOOTSTRAP_SAMPLES",
-        default_value_t = 1
-    )]
-    n_boot_double: u32,
+    pub binwidth: usize,
+    #[arg(long, value_name = "DOUBLE_BOOTSTRAP_SAMPLES")]
+    pub n_boot_double: Option<u32>,
 }
 
 #[derive(Parser, Debug)]
@@ -113,32 +99,15 @@ struct ComputeEffectiveMassArgs {
 
 #[derive(Parser, Debug)]
 struct FitEffectiveMassArgs {
-    csv_filename: String,
+    json_filename: String,
     t1: usize,
     t2: usize,
 }
 
 #[derive(Parser, Debug)]
 struct HistogramArgs {
-    csv_filename: String,
+    json_filename: String,
     nbins: usize,
-}
-#[derive(Parser, Debug)]
-struct BootstrapFitsWithWFArgs {
-    #[clap(flatten)]
-    hmc: HMCArgs,
-    #[clap(flatten)]
-    wf: WFArgs,
-    #[clap(flatten)]
-    boot: BinBootstrapArgs,
-    #[arg(short, long, value_name = "CHANNEL")]
-    channel: String,
-    #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
-    solver_precision: f64,
-    #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
-    effective_mass_t_max: usize,
-    #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
-    effective_mass_t_min: usize,
 }
 #[derive(Parser, Debug)]
 struct CalculateW0Args {
@@ -162,6 +131,8 @@ struct BootstrapFitsArgs {
     effective_mass_t_max: usize,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
     effective_mass_t_min: usize,
+    #[clap(flatten)]
+    wf: Option<WFArgs>,
 }
 
 #[derive(Parser, Debug)]
@@ -188,91 +159,49 @@ struct BootstrapFitsRatioArgs {
 
 #[derive(Parser, Debug)]
 struct BootstrapErrorArgs {
-    csv_filename: String,
+    json_filename: String,
     #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
     n_boot: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct EffectiveMassRow {
+struct EffectiveMass {
     #[serde(rename = "Tau")]
-    tau: usize,
+    tau: Vec<usize>,
     #[serde(rename = "Effective Mass")]
-    mass: f64,
+    mass: Vec<f64>,
     #[serde(rename = "Error")]
-    error: f64,
+    error: Vec<f64>,
     #[serde(rename = "Failed Samples (%)")]
-    failures: f64,
-}
-#[derive(Debug, Serialize)]
-struct EffectiveMassFit {
-    #[serde(rename = "Effective Mass Fit")]
-    mass: f64,
-    #[serde(rename = "Error")]
-    error: f64,
-}
-#[derive(Debug, Serialize, Deserialize)]
-struct BootstrapSample {
-    #[serde(rename = "Sample")]
-    sample: f64,
-}
-
-fn write_bootstrap(results: Vec<Option<f64>>) {
-    let mut results_g = vec![];
-    for result in results {
-        match result {
-            None => {}
-            Some(val) => results_g.push(val),
-        };
-    }
-    let mut wtr = csv::Writer::from_writer(stdout());
-    for sample in results_g {
-        wtr.serialize(BootstrapSample { sample }).unwrap();
-    }
-    wtr.flush().unwrap();
+    failures: Vec<usize>,
 }
 
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
-    let mut tau = vec![];
-    let mut mass = vec![];
-    let mut error = vec![];
-    let mut rdr = csv::Reader::from_reader(File::open(args.csv_filename).unwrap());
-    for result in rdr.deserialize() {
-        let record: EffectiveMassRow = result.unwrap();
-        tau.push(record.tau);
-        mass.push(record.mass);
-        error.push(record.error);
-    }
+    let EffectiveMass {
+        tau, mass, error, ..
+    } = serde_json::from_reader(File::open(args.json_filename).unwrap()).unwrap();
     let offset = tau.iter().position(|&x| x == args.t1).unwrap();
     let index = offset..(offset + args.t2 - args.t1 + 1);
     let fit = weighted_mean(&mass[index.clone()], &error[index]);
-    let mut wtr = csv::Writer::from_writer(stdout());
-    wtr.serialize(EffectiveMassFit {
-        mass: fit.0,
-        error: fit.1,
-    })
-    .unwrap();
-    wtr.flush().unwrap();
+    println!("{}", serde_json::to_string(&fit).unwrap());
 }
 
 fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
-    let channel = load_channel_from_file_folded(&args.hmc.filename, &args.channel)
-        .thermalise(args.hmc.thermalisation);
-    let global_t = load_global_t_from_file(&args.hmc.filename);
+    let channel = ObservableCalculation::load(&args.hmc, args.channel);
 
     let mut solve_failures = vec![];
     let mut effmass_mean = vec![];
     let mut effmass_error = vec![];
-    assert_eq!(global_t, (channel.each_len - 1) * 2);
-    for tau in 1..=args.effective_mass_t_max {
+    assert_eq!(channel.global_t, (channel.obs.each_len - 1) * 2);
+    for tau in args.effective_mass_t_min..=args.effective_mass_t_max {
         let results: Vec<Result<f64, roots::SearchError>> = (0..args.boot.n_boot)
             .into_par_iter()
             .map(|_| {
                 let Measurement {
                     values: mu,
                     errors: _,
-                } = channel.get_subsample_mean_stderr(args.boot.binwidth);
-                effective_mass(&mu, global_t, tau, args.solver_precision)
+                } = channel.obs.get_subsample_mean_stderr(args.boot.binwidth);
+                effective_mass(&mu, channel.global_t, tau, args.solver_precision)
             })
             .collect();
         let mut effmass_inner = Vec::with_capacity(args.boot.n_boot as usize);
@@ -287,188 +216,96 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
         effmass_mean.push(mean(&effmass_inner));
         effmass_error.push(standard_deviation(&effmass_inner, true));
     }
-    let mut wtr = csv::Writer::from_writer(stdout());
-    for tau in args.effective_mass_t_min..=args.effective_mass_t_max {
-        wtr.serialize(EffectiveMassRow {
-            tau,
-            mass: effmass_mean[tau - 1],
-            error: effmass_error[tau - 1],
-            failures: solve_failures[tau - 1] as f64 * 100.0 / args.boot.n_boot as f64,
+    println!(
+        "{}",
+        serde_json::to_string(&EffectiveMass {
+            tau: (args.effective_mass_t_min..=args.effective_mass_t_max).collect(),
+            mass: effmass_mean,
+            error: effmass_error,
+            failures: solve_failures,
         })
-        .unwrap();
-        wtr.flush().unwrap();
-    }
+        .unwrap()
+    )
 }
 
-fn bootstrap_fits_with_wf_command(args: BootstrapFitsWithWFArgs) {
-    let channel = load_channel_from_file_folded(&args.hmc.filename, &args.channel)
-        .thermalise(args.hmc.thermalisation);
-    let wf =
-        load_wf_observables_from_file(&args.wf.wf_filename).thermalise(args.wf.wf_thermalisation);
-    assert_eq!(channel.nconfs, wf.tc.nconfs);
-    let global_t = load_global_t_from_file(&args.hmc.filename);
-    let results = (0..args.boot.n_boot)
-        .into_par_iter()
-        .map(|_| {
-            let samples = get_samples(channel.nconfs, args.boot.binwidth);
-            let w0 = calculate_w0(
-                calculate_w(
-                    &wf.get_subsample_mean_stderr_from_samples(
-                        samples.clone(),
-                        WilsonFlowObservables::T2Esym,
-                    )
-                    .values,
-                    &wf.t,
-                ),
-                args.wf.w_ref,
-            )?;
-            let mut masses = vec![];
-            let mu = channel
-                .get_subsample_mean_stderr_from_samples(samples)
-                .values;
-            for tau in args.effective_mass_t_min..(args.effective_mass_t_max + 1) {
-                let mass = effective_mass(&mu, global_t, tau, args.solver_precision);
-                match mass {
-                    Err(_) => return None,
-                    Ok(val) => masses.push(val),
-                };
-            }
-            Some(mean(&masses) * w0)
-        })
-        .collect::<Vec<Option<f64>>>();
-    write_bootstrap(results);
-}
 fn bootstrap_fits_command(args: BootstrapFitsArgs) {
-    let channel = load_channel_from_file_folded(&args.hmc.filename, &args.channel)
-        .thermalise(args.hmc.thermalisation);
-    let global_t = load_global_t_from_file(&args.hmc.filename);
-    let results = (0..args.boot.n_boot)
-        .into_par_iter()
-        .map(|_| {
-            let samples = get_samples(channel.nconfs, args.boot.binwidth);
-            let mut masses = vec![];
-            let mu = channel
-                .get_subsample_mean_stderr_from_samples(samples)
-                .values;
-            for tau in args.effective_mass_t_min..(args.effective_mass_t_max + 1) {
-                let mass = effective_mass(&mu, global_t, tau, args.solver_precision);
-                match mass {
-                    Err(_) => return None,
-                    Ok(val) => masses.push(val),
-                };
-            }
-            Some(mean(&masses))
-        })
-        .collect::<Vec<Option<f64>>>();
-    write_bootstrap(results);
+    let channel = ObservableCalculation::load(&args.hmc, args.channel);
+
+    let wf = if let Some(wfargs) = args.wf {
+        Some(WilsonFlowCalculation::load(wfargs))
+    } else {
+        None
+    };
+    let func = |samples: Vec<usize>| {
+        let mu = &channel
+            .obs
+            .get_subsample_mean_stderr_from_samples(&samples)
+            .values;
+        let masses = effective_mass_all_t(
+            &mu,
+            channel.global_t,
+            args.effective_mass_t_min,
+            args.effective_mass_t_max,
+            args.solver_precision,
+        )?;
+        let factor = match &wf {
+            None => 1.0,
+            Some(wf) => calculate_w0_from_samples(&wf.data, &samples, wf.w_ref)?,
+        };
+        Some(mean(&masses) * factor)
+    };
+    let results = bootstrap(func, channel.obs.nconfs, args.boot);
+    results.print();
 }
 fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
-    let numerator_channel =
-        load_channel_from_file_folded(&args.hmc.filename, &args.numerator_channel)
-            .thermalise(args.hmc.thermalisation);
-    let denominator_channel =
-        load_channel_from_file_folded(&args.hmc.filename, &args.denominator_channel)
-            .thermalise(args.hmc.thermalisation);
-    let global_t = load_global_t_from_file(&args.hmc.filename);
-    let results = (0..args.boot.n_boot)
-        .into_par_iter()
-        .map(|_| {
-            let samples = get_samples(numerator_channel.nconfs, args.boot.binwidth);
+    let numerator_channel = ObservableCalculation::load(&args.hmc, args.numerator_channel);
+    let denominator_channel = ObservableCalculation::load(&args.hmc, args.denominator_channel);
+    let func = |samples: Vec<usize>| {
+        let num_mu = numerator_channel
+            .obs
+            .get_subsample_mean_stderr_from_samples(&samples)
+            .values;
+        let num_masses = effective_mass_all_t(
+            &num_mu,
+            numerator_channel.global_t,
+            args.numerator_effective_mass_t_min,
+            args.numerator_effective_mass_t_max,
+            args.solver_precision,
+        )?;
 
-            let mut num_masses = vec![];
-            let num_mu = numerator_channel
-                .get_subsample_mean_stderr_from_samples(samples.clone())
-                .values;
-            for tau in
-                args.numerator_effective_mass_t_min..(args.numerator_effective_mass_t_max + 1)
-            {
-                let mass = effective_mass(&num_mu, global_t, tau, args.solver_precision);
-                match mass {
-                    Err(_) => return None,
-                    Ok(val) => num_masses.push(val),
-                };
-            }
+        let denom_mu = denominator_channel
+            .obs
+            .get_subsample_mean_stderr_from_samples(&samples)
+            .values;
+        let denom_masses = effective_mass_all_t(
+            &denom_mu,
+            denominator_channel.global_t,
+            args.denominator_effective_mass_t_min,
+            args.denominator_effective_mass_t_max,
+            args.solver_precision,
+        )?;
 
-            let mut denom_masses = vec![];
-            let denom_mu = denominator_channel
-                .get_subsample_mean_stderr_from_samples(samples)
-                .values;
-            for tau in
-                args.denominator_effective_mass_t_min..(args.denominator_effective_mass_t_max + 1)
-            {
-                let mass = effective_mass(&denom_mu, global_t, tau, args.solver_precision);
-                match mass {
-                    Err(_) => return None,
-                    Ok(val) => denom_masses.push(val),
-                };
-            }
-            Some(mean(&num_masses) / mean(&denom_masses))
-        })
-        .collect::<Vec<Option<f64>>>();
-    write_bootstrap(results);
+        Some(mean(&num_masses) / mean(&denom_masses))
+    };
+    let results = bootstrap(func, numerator_channel.obs.nconfs, args.boot);
+
+    results.print();
 }
 fn calculate_w0_command(args: CalculateW0Args) {
-    let wf =
-        load_wf_observables_from_file(&args.wf.wf_filename).thermalise(args.wf.wf_thermalisation);
-    let results = (0..args.boot.n_boot)
-        .into_par_iter()
-        .map(|_| {
-            let samples = get_samples(wf.t2_esym.nconfs, args.boot.binwidth);
-            calculate_w0(
-                calculate_w(
-                    &wf.get_subsample_mean_stderr_from_samples(
-                        samples,
-                        WilsonFlowObservables::T2Esym,
-                    )
-                    .values,
-                    &wf.t,
-                ),
-                args.wf.w_ref,
-            )
-        })
-        .collect::<Vec<Option<f64>>>();
-    write_bootstrap(results);
+    let wf = WilsonFlowCalculation::load(args.wf);
+    let func = |samples: Vec<usize>| calculate_w0_from_samples(&wf.data, &samples, wf.w_ref);
+    let results = bootstrap(func, wf.data.t2_esym.nconfs, args.boot);
+    results.print();
 }
 
 fn histogram_command(args: HistogramArgs) {
-    let mut sample: Vec<f64> = vec![];
-    let mut rdr = csv::Reader::from_reader(File::open(args.csv_filename).unwrap());
-    for result in rdr.deserialize() {
-        let record: BootstrapSample = result.unwrap();
-        sample.push(record.sample);
+    if let BootstrapResult::SingleBootstrap(mut sample) =
+        serde_json::from_reader(File::open(args.json_filename).unwrap()).unwrap()
+    {
+        sample.sort_by(f64::total_cmp);
+        let hist = bin(&sample, args.nbins);
+        println!("{}", serde_json::to_string(&hist).unwrap());
     }
-    sample.sort_by(f64::total_cmp);
-    let hist = bin(&sample, args.nbins);
-    let mut wtr = csv::Writer::from_writer(stdout());
-    for hist_row in hist {
-        wtr.serialize(hist_row).unwrap();
-    }
-    wtr.flush().unwrap();
-}
-
-fn bootstrap_error_command(args: BootstrapErrorArgs) {
-    let mut sample: Vec<f64> = vec![];
-    let mut rdr = csv::Reader::from_reader(File::open(args.csv_filename).unwrap());
-    for result in rdr.deserialize() {
-        let record: BootstrapSample = result.unwrap();
-        sample.push(record.sample);
-    }
-    let results = (0..args.n_boot)
-        .into_par_iter()
-        .map(|_| {
-            let mut tmp = vec![];
-            let boot = get_samples(sample.len(), 1);
-            for index in boot {
-                tmp.push(sample[index]);
-            }
-            standard_deviation(&tmp, true)
-        })
-        .collect::<Vec<f64>>();
-    let mut wtr = csv::Writer::from_writer(stdout());
-    for sample in results {
-        wtr.serialize(BootstrapSample { sample }).unwrap();
-    }
-    wtr.flush().unwrap();
 }
 
 pub fn parser() {
@@ -476,12 +313,10 @@ pub fn parser() {
     match app.command {
         Command::ComputeEffectiveMass { args } => compute_effective_mass_command(args),
         Command::FitEffectiveMass { args } => fit_effective_mass_command(args),
-        Command::BootstrapFitsWithWF { args } => bootstrap_fits_with_wf_command(args),
         Command::BootstrapFits { args } => bootstrap_fits_command(args),
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
         Command::CalculateW0 { args } => calculate_w0_command(args),
         Command::Histogram { args } => histogram_command(args),
-        Command::BootstrapError { args } => bootstrap_error_command(args),
         Command::GenerateCompletions {} => {
             generate(Nushell, &mut App::command(), "reshotka", &mut stdout())
         }

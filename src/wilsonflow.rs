@@ -1,4 +1,6 @@
+use crate::io::load_wf_observables_from_file;
 use crate::observables::{Measurement, Observable};
+use crate::parser::WFArgs;
 use crate::statistics::{centred_difference_derivative, line_of_best_fit};
 
 #[allow(dead_code)]
@@ -37,6 +39,21 @@ impl W {
 }
 
 #[derive(Debug)]
+pub struct WilsonFlowCalculation {
+    pub data: WilsonFlow,
+    pub w_ref: f64,
+}
+impl WilsonFlowCalculation {
+    pub fn load(args: WFArgs) -> Self {
+        WilsonFlowCalculation {
+            data: load_wf_observables_from_file(&args.wf_filename)
+                .thermalise(args.wf_thermalisation),
+            w_ref: args.w_ref,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct WilsonFlow {
     pub t: Vec<f64>,
     pub t2_esym: Observable,
@@ -49,7 +66,7 @@ impl WilsonFlow {
 
     pub fn get_subsample_mean_stderr_from_samples(
         &self,
-        samples: Vec<usize>,
+        samples: &[usize],
         channel: WilsonFlowObservables,
     ) -> Measurement {
         match channel {
@@ -89,6 +106,18 @@ pub fn calculate_w0(w: W, wref: f64) -> Option<f64> {
         Some(((wref - c) / m).sqrt())
     }
 }
+
+pub fn calculate_w0_from_samples(wf: &WilsonFlow, samples: &[usize], w_ref: f64) -> Option<f64> {
+    calculate_w0(
+        calculate_w(
+            &wf.get_subsample_mean_stderr_from_samples(&samples, WilsonFlowObservables::T2Esym)
+                .values,
+            &wf.t,
+        ),
+        w_ref,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,7 +131,7 @@ mod tests {
             calculate_w0(
                 calculate_w(
                     &wf.get_subsample_mean_stderr_from_samples(
-                        get_samples(wf.tc.nconfs, 1),
+                        &get_samples(wf.tc.nconfs, 1),
                         WilsonFlowObservables::T2Esym,
                     )
                     .values,

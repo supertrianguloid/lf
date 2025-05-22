@@ -2,7 +2,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Debug)]
-pub struct Measurement {
+pub struct SingleMeasurement {
     value: f64,
     error: f64,
 }
@@ -33,8 +33,8 @@ pub fn standard_error(values: &[f64]) -> f64 {
 }
 #[allow(dead_code)]
 /// Performs the naive error propagation assuming `v1` and `v2` are independent.
-pub fn propagate_ratio(v1: Measurement, v2: Measurement) -> Measurement {
-    Measurement {
+pub fn propagate_ratio(v1: SingleMeasurement, v2: SingleMeasurement) -> SingleMeasurement {
+    SingleMeasurement {
         value: v1.value / v2.value,
         error: ((v1.error / v1.value).powi(2) + (v2.error / v2.value).powi(2)).sqrt(),
     }
@@ -153,17 +153,17 @@ mod tests {
     }
     #[test]
     fn propagate_ratio_test() {
-        let v1 = Measurement {
+        let v1 = SingleMeasurement {
             value: 1.45,
             error: 0.3,
         };
-        let v2 = Measurement {
+        let v2 = SingleMeasurement {
             value: 3.24,
             error: 0.63,
         };
         assert_eq!(
             propagate_ratio(v1, v2),
-            Measurement {
+            SingleMeasurement {
                 value: 0.4475308641975308,
                 error: 0.2839274997083719
             }

@@ -51,6 +51,23 @@ where
     }
     None
 }
+pub fn effective_mass_all_t(
+    correlator: &[f64],
+    global_t: usize,
+    t_min: usize,
+    t_max: usize,
+    solver_precision: f64,
+) -> Option<Vec<f64>> {
+    let mut result = vec![];
+    for tau in t_min..(t_max + 1) {
+        let mass = effective_mass(&correlator, global_t, tau, solver_precision);
+        match mass {
+            Err(_) => return None,
+            Ok(val) => result.push(val),
+        };
+    }
+    Some(result)
+}
 
 ///Computes the effective mass in a correlator. Tau must be >= 1.
 pub fn effective_mass(
