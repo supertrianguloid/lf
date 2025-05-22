@@ -10,8 +10,8 @@ repository = "https://github.com/supertrianguloid/reshotka"
 clap = { version = "4.5.23", features = ["derive"] }
 clap_complete = "4.5.47"
 clap_complete_nushell = "4.5.5"
-csv = "1.3.1"
 rand = "0.9.0"
 rayon = "1.10.0"
 roots = "0.0.8"
 serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.140"
