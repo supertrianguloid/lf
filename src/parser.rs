@@ -184,7 +184,7 @@ struct EffectiveMass {
     #[serde(rename = "Error")]
     error: Vec<f64>,
     #[serde(rename = "Failed Samples (%)")]
-    failures: Vec<usize>,
+    failures: Vec<f64>,
 }
 
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
@@ -223,7 +223,7 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
                 Err(_) => nfailures += 1,
             }
         }
-        solve_failures.push(nfailures);
+        solve_failures.push(100.0 * (nfailures as f64) / (args.boot.n_boot as f64));
         effmass_mean.push(mean(&effmass_inner));
         effmass_error.push(standard_deviation(&effmass_inner, true));
     }
