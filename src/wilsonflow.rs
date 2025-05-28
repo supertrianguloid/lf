@@ -107,6 +107,15 @@ pub fn calculate_w0(w: W, wref: f64) -> Option<f64> {
     }
 }
 
+pub fn extract_tc(wf: WilsonFlow, tref: f64) -> Option<Vec<f64>> {
+    let pos = wf.t.iter().position(|x| *x >= tref)?;
+    let mut tc = vec![];
+    for i in 0..wf.tc.nconfs {
+        tc.push(wf.tc.get_slice(i)[pos]);
+    }
+    Some(tc)
+}
+
 pub fn calculate_w0_from_samples(wf: &WilsonFlow, samples: &[usize], w_ref: f64) -> Option<f64> {
     calculate_w0(
         calculate_w(

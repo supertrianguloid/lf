@@ -2,7 +2,7 @@ use crate::bootstrap::{bootstrap, BootstrapResult};
 use crate::observables::{Measurement, ObservableCalculation};
 use crate::spectroscopy::{effective_mass, effective_mass_all_t};
 use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
-use crate::wilsonflow::{calculate_w0_from_samples, WilsonFlowCalculation};
+use crate::wilsonflow::{calculate_w0_from_samples, extract_tc, WilsonFlowCalculation};
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::generate;
 use clap_complete_nushell::Nushell;
@@ -45,6 +45,10 @@ enum Command {
     CalculateW0 {
         #[clap(flatten)]
         args: CalculateW0Args,
+    },
+    ExtractTC {
+        #[clap(flatten)]
+        args: ExtractTCArgs,
     },
     Histogram {
         #[clap(flatten)]
@@ -113,6 +117,13 @@ struct HistogramArgs {
 struct CalculateW0Args {
     #[clap(flatten)]
     boot: BinBootstrapArgs,
+    #[clap(flatten)]
+    wf: WFArgs,
+}
+#[derive(Parser, Debug)]
+struct ExtractTCArgs {
+    #[arg(long, value_name = "T_REFERENCE", default_value_t = 0.0)]
+    pub t_ref: f64,
     #[clap(flatten)]
     wf: WFArgs,
 }
@@ -300,6 +311,14 @@ fn calculate_w0_command(args: CalculateW0Args) {
     results.print();
 }
 
+fn extract_tc_command(args: ExtractTCArgs) {
+    let wf = WilsonFlowCalculation::load(args.wf);
+    println!(
+        "{}",
+        serde_json::to_string(&extract_tc(wf.data, args.t_ref).unwrap()).unwrap()
+    )
+}
+
 fn histogram_command(args: HistogramArgs) {
     if let BootstrapResult::SingleBootstrap(mut sample) =
         serde_json::from_reader(File::open(args.json_filename).unwrap()).unwrap()
@@ -318,6 +337,7 @@ pub fn parser() {
         Command::BootstrapFits { args } => bootstrap_fits_command(args),
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
         Command::CalculateW0 { args } => calculate_w0_command(args),
+        Command::ExtractTC { args } => extract_tc_command(args),
         Command::Histogram { args } => histogram_command(args),
         Command::GenerateCompletions {} => {
             generate(Nushell, &mut App::command(), "reshotka", &mut stdout())
