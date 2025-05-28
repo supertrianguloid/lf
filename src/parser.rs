@@ -232,7 +232,9 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
     let channel = ObservableCalculation::load(&args.hmc, args.channel);
 
     let wf = if let Some(wfargs) = args.wf {
-        Some(WilsonFlowCalculation::load(wfargs))
+        let w = Some(WilsonFlowCalculation::load(wfargs));
+        assert_eq!(channel.obs.nconfs, w.as_ref().unwrap().data.tc.nconfs);
+        w
     } else {
         None
     };
