@@ -1,4 +1,5 @@
 use crate::bootstrap::{bootstrap, BootstrapResult};
+use crate::io::load_channel_from_file_folded;
 use crate::observables::{Measurement, ObservableCalculation};
 use crate::spectroscopy::{effective_mass, effective_mass_all_t};
 use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
@@ -54,6 +55,10 @@ enum Command {
         #[clap(flatten)]
         args: HistogramArgs,
     },
+    Summary {
+        #[clap(flatten)]
+        args: SummaryArgs,
+    },
     GenerateCompletions {},
 }
 
@@ -62,6 +67,11 @@ pub struct HMCArgs {
     pub filename: String,
     #[arg(short, long, value_name = "THERMALISATION", default_value_t = 0)]
     pub thermalisation: usize,
+}
+
+#[derive(Parser, Debug)]
+pub struct SummaryArgs {
+    pub filename: String,
 }
 
 #[derive(Parser, Debug)]
@@ -185,6 +195,11 @@ struct EffectiveMass {
     error: Vec<f64>,
     #[serde(rename = "Failed Samples (%)")]
     failures: Vec<f64>,
+}
+
+#[derive(Debug, Serialize)]
+struct Summary {
+    nconfs: usize,
 }
 
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
@@ -329,6 +344,17 @@ fn histogram_command(args: HistogramArgs) {
     }
 }
 
+fn summary_command(args: SummaryArgs) {
+    let channel = load_channel_from_file_folded(&args.filename, "g5");
+    println!(
+        "{}",
+        serde_json::to_string(&Summary {
+            nconfs: channel.nconfs,
+        })
+        .unwrap()
+    );
+}
+
 pub fn parser() {
     let app = App::parse();
     match app.command {
@@ -339,6 +365,7 @@ pub fn parser() {
         Command::CalculateW0 { args } => calculate_w0_command(args),
         Command::ExtractTC { args } => extract_tc_command(args),
         Command::Histogram { args } => histogram_command(args),
+        Command::Summary { args } => summary_command(args),
         Command::GenerateCompletions {} => {
             generate(Nushell, &mut App::command(), "reshotka", &mut stdout())
         }
