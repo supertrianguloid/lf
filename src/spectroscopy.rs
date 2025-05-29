@@ -60,7 +60,7 @@ pub fn effective_mass_all_t(
 ) -> Option<Vec<f64>> {
     let mut result = vec![];
     for tau in t_min..(t_max + 1) {
-        let mass = effective_mass(&correlator, global_t, tau, solver_precision);
+        let mass = effective_mass(correlator, global_t, tau, solver_precision);
         match mass {
             Err(_) => return None,
             Ok(val) => result.push(val),

@@ -3,7 +3,6 @@ use rand::distr::{Distribution, Uniform};
 use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum BootstrapResult {
@@ -59,7 +58,6 @@ where
                     let sample = get_samples(length, boot_args.binwidth);
                     drop_nones(
                         (0..boot_args.n_boot)
-                            .into_iter()
                             .map(|_| func(get_subsample(&sample)))
                             .collect::<Vec<Option<f64>>>(),
                     )

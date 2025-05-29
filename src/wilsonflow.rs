@@ -119,7 +119,7 @@ pub fn extract_tc(wf: WilsonFlow, tref: f64) -> Option<Vec<f64>> {
 pub fn calculate_w0_from_samples(wf: &WilsonFlow, samples: &[usize], w_ref: f64) -> Option<f64> {
     calculate_w0(
         calculate_w(
-            &wf.get_subsample_mean_stderr_from_samples(&samples, WilsonFlowObservables::T2Esym)
+            &wf.get_subsample_mean_stderr_from_samples(samples, WilsonFlowObservables::T2Esym)
                 .values,
             &wf.t,
         ),

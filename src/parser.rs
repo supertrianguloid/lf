@@ -230,7 +230,7 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
                 effective_mass(&mu, channel.global_t, tau, args.solver_precision)
             })
             .collect();
-        let mut effmass_inner = Vec::with_capacity(args.boot.n_boot as usize);
+        let mut effmass_inner = Vec::with_capacity(args.boot.n_boot);
         let mut nfailures = 0;
         for result in results {
             match result {
@@ -270,7 +270,7 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
             .get_subsample_mean_stderr_from_samples(&samples)
             .values;
         let masses = effective_mass_all_t(
-            &mu,
+            mu,
             channel.global_t,
             args.effective_mass_t_min,
             args.effective_mass_t_max,

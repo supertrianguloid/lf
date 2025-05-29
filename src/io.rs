@@ -29,9 +29,9 @@ pub fn fold_correlator(mut corr: Vec<f64>, symmetry: SymmetryType) -> Vec<f64> {
 pub fn load_channel_from_file_folded(hmc_filename: &str, channel: &str) -> Observable {
     fn load_channel(hmc_filename: &str, channel: &str, symmetry: SymmetryType) -> Observable {
         let channel = format!(" {}=", channel);
-        let data = BufReader::new(File::open(hmc_filename).unwrap())
+        let data = read_to_string(hmc_filename)
+            .unwrap()
             .lines()
-            .map(|line| line.unwrap())
             .filter(|line| line.contains("DEFAULT_SEMWALL TRIPLET"))
             .filter(|line| line.contains(&channel))
             .map(|line| {
