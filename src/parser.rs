@@ -335,11 +335,9 @@ fn extract_tc_command(args: ExtractTCArgs) {
 }
 
 fn histogram_command(args: HistogramArgs) {
-    dbg!("Loading file");
     if let BootstrapResult::SingleBootstrap(mut sample) =
         serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
     {
-        dbg!("Sorting file");
         sample.par_sort_by(f64::total_cmp);
         let hist = bin(&sample, args.nbins);
         println!("{}", serde_json::to_string(&hist).unwrap());
