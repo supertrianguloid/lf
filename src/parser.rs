@@ -9,7 +9,7 @@ use clap_complete::generate;
 use clap_complete_nushell::Nushell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{fs::File, io::stdout};
+use std::{fs::read_to_string, io::stdout};
 
 #[derive(Parser, Debug)]
 #[clap(
@@ -205,7 +205,7 @@ struct Summary {
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
     let EffectiveMass {
         tau, mass, error, ..
-    } = serde_json::from_reader(File::open(args.json_filename).unwrap()).unwrap();
+    } = serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap();
     let offset = tau.iter().position(|&x| x == args.t1).unwrap();
     let index = offset..(offset + args.t2 - args.t1 + 1);
     let fit = weighted_mean(&mass[index.clone()], &error[index]);
@@ -335,9 +335,11 @@ fn extract_tc_command(args: ExtractTCArgs) {
 }
 
 fn histogram_command(args: HistogramArgs) {
+    dbg!("Loading file");
     if let BootstrapResult::SingleBootstrap(mut sample) =
-        serde_json::from_reader(File::open(args.json_filename).unwrap()).unwrap()
+        serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
     {
+        dbg!("Sorting file");
         sample.sort_by(f64::total_cmp);
         let hist = bin(&sample, args.nbins);
         println!("{}", serde_json::to_string(&hist).unwrap());
