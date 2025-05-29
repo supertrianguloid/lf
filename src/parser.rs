@@ -340,7 +340,7 @@ fn histogram_command(args: HistogramArgs) {
         serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
     {
         dbg!("Sorting file");
-        sample.sort_by(f64::total_cmp);
+        sample.par_sort_by(f64::total_cmp);
         let hist = bin(&sample, args.nbins);
         println!("{}", serde_json::to_string(&hist).unwrap());
     }
