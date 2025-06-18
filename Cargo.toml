@@ -3,7 +3,7 @@ name = "reshotka"
 description = "A tool for HiRep simulation analysis."
 version = "0.0.1"
 edition = "2021"
-rust-version = "1.87"
+rust-version = "1.76"
 license = "GPL-3.0-only"
 repository = "https://github.com/supertrianguloid/reshotka"
 
