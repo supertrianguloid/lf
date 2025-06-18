@@ -3,6 +3,7 @@ name = "reshotka"
 description = "A tool for HiRep simulation analysis."
 version = "0.0.1"
 edition = "2021"
+rust-version = "1.87"
 license = "GPL-3.0-only"
 repository = "https://github.com/supertrianguloid/reshotka"
 
@@ -10,8 +11,10 @@ repository = "https://github.com/supertrianguloid/reshotka"
 clap = { version = "4.5.23", features = ["derive"] }
 clap_complete = "4.5.47"
 clap_complete_nushell = "4.5.5"
+nalgebra = "0.33.2"
 rand = "0.9.0"
 rayon = "1.10.0"
 roots = "0.0.8"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.140"
+varpro = "0.13.1"
