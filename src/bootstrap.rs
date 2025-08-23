@@ -14,7 +14,7 @@ impl BootstrapResult {
         println!("{}", serde_json::to_string(&self).unwrap());
     }
 }
-
+// #[inline(always)]
 pub fn get_samples(length: usize, binsize: usize) -> Vec<usize> {
     let length_new = length / binsize;
     let mut rng = rand::rng();
@@ -26,6 +26,7 @@ pub fn get_samples(length: usize, binsize: usize) -> Vec<usize> {
     samples
 }
 
+// #[inline(always)]
 pub fn get_subsample(sample: &[usize]) -> Vec<usize> {
     let mut result = Vec::with_capacity(sample.len());
     let mut rng = rand::rng();
