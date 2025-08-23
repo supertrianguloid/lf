@@ -5,7 +5,6 @@ use std::fs::{read_to_string, File};
 use std::io::{BufRead, BufReader};
 
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
 pub enum SymmetryType {
     Symmetric,
     Antisymmetric,
@@ -60,6 +59,7 @@ pub fn load_channel_from_file_folded(hmc_filename: &str, channel: &str) -> Obser
             load_channel(hmc_filename, "g5g2", SymmetryType::Symmetric),
             load_channel(hmc_filename, "g5g3", SymmetryType::Symmetric),
         ),
+        "g5_g0g5_re" => load_channel(hmc_filename, channel, SymmetryType::Antisymmetric),
         _ => todo!("Unknown channel"),
     }
 }

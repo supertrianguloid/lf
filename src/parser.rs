@@ -1,7 +1,7 @@
 use crate::bootstrap::{bootstrap, BootstrapResult};
 use crate::io::load_channel_from_file_folded;
 use crate::observables::{Measurement, ObservableCalculation};
-use crate::spectroscopy::{effective_mass, effective_mass_all_t};
+use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac_all_t};
 use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
 use crate::wilsonflow::{calculate_w0_from_samples, extract_tc, WilsonFlowCalculation};
 use clap::{CommandFactory, Parser, Subcommand};
@@ -59,6 +59,10 @@ enum Command {
         #[clap(flatten)]
         args: SummaryArgs,
     },
+    // ComputePCACMass {
+    // #[clap(flatten)]
+    // args: ComputePCACMassArgs,
+    // },
     GenerateCompletions {},
 }
 
@@ -179,6 +183,14 @@ struct BootstrapFitsRatioArgs {
 }
 
 #[derive(Parser, Debug)]
+struct ComputePCACMassArgs {
+    #[clap(flatten)]
+    hmc: HMCArgs,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
+}
+
+#[derive(Parser, Debug)]
 struct BootstrapErrorArgs {
     json_filename: String,
     #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
@@ -195,6 +207,13 @@ struct EffectiveMass {
     error: Vec<f64>,
     #[serde(rename = "Failed Samples (%)")]
     failures: Vec<f64>,
+}
+#[derive(Debug, Serialize, Deserialize)]
+struct PCACMass {
+    #[serde(rename = "Tau")]
+    tau: Vec<usize>,
+    #[serde(rename = "Effective Mass")]
+    mass: Vec<f64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -333,12 +352,40 @@ fn extract_tc_command(args: ExtractTCArgs) {
         serde_json::to_string(&extract_tc(wf.data, args.t_ref).unwrap()).unwrap()
     )
 }
+// fn compute_pcac_mass_command(args: ComputePCACMassArgs) {
+//     let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
+//     let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
+//     let func = |samples: Vec<usize>| {
+//         effective_pcac_all_t(
+//             &f_ap
+//                 .obs
+//                 .get_subsample_mean_stderr_from_samples(&samples)
+//                 .values,
+//             &f_ps
+//                 .obs
+//                 .get_subsample_mean_stderr_from_samples(&samples)
+//                 .values,
+//         )
+//     };
+//     let results = bootstrap(func, f_ap.obs.nconfs, args.boot);
+//     println!(
+//         "{}",
+//         serde_json::to_string(&PCACMass {
+//             tau: (1..(f_ap.global_t / 2)).collect(),
+//             mass: effective_pcac_all_t(
+//                 &f_ap.obs.get_subsample_mean_stderr(1).values,
+//                 &f_ps.obs.get_subsample_mean_stderr(1).values,
+//             ),
+//         })
+//         .unwrap()
+//     );
+// }
 
 fn histogram_command(args: HistogramArgs) {
     if let BootstrapResult::SingleBootstrap(mut sample) =
         serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
     {
-        sample.par_sort_by(f64::total_cmp);
+        sample.par_sort_unstable_by(f64::total_cmp);
         let hist = bin(&sample, args.nbins);
         println!("{}", serde_json::to_string(&hist).unwrap());
     }
@@ -366,6 +413,7 @@ pub fn parser() {
         Command::ExtractTC { args } => extract_tc_command(args),
         Command::Histogram { args } => histogram_command(args),
         Command::Summary { args } => summary_command(args),
+        // Command::ComputePCACMass { args } => compute_pcac_mass_command(args),
         Command::GenerateCompletions {} => {
             generate(Nushell, &mut App::command(), "reshotka", &mut stdout())
         }
