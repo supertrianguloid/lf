@@ -3,6 +3,7 @@ use crate::wilsonflow::{WilsonFlow, WilsonFlowObservables};
 use std::fs::{read_to_string, File};
 
 use std::io::{BufRead, BufReader};
+use std::iter::Inspect;
 
 #[derive(Clone, Copy)]
 pub enum SymmetryType {
@@ -141,6 +142,21 @@ pub fn load_wf_observables_from_file(wf_filename: &str) -> WilsonFlow {
         Observable::new(minlength, t.len(), t2_esym_g),
         Observable::new(minlength, t.len(), tc_g),
     )
+}
+pub fn load_plaquette_from_file(hmc_filename: &str) -> Vec<f64> {
+    read_to_string(hmc_filename)
+        .unwrap()
+        .lines()
+        .filter(|line| line.contains("Plaquette="))
+        .map(|line| {
+            line.trim()
+                .split("=")
+                .nth(1)
+                .unwrap()
+                .parse::<f64>()
+                .unwrap()
+        })
+        .collect::<Vec<f64>>()
 }
 
 #[cfg(test)]

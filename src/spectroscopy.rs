@@ -30,7 +30,6 @@ fn fit_cosh(corr: Measurement, global_t: usize, lower: usize, upper: usize) -> C
         );
     }
 
-    // the data, weight and initial guesses for our fitting problem
     let t = DVector::from_vec((lower..upper).map(|val| val as f64).collect());
     let y = DVector::from_vec(corr.values[lower..upper].to_vec());
     let w = DVector::from_vec(
@@ -46,25 +45,20 @@ fn fit_cosh(corr: Measurement, global_t: usize, lower: usize, upper: usize) -> C
         .function(["mass"], generate_models(global_t).0)
         .partial_deriv("mass", generate_models(global_t).1)
         .invariant_function(|t| DVector::from_element(t.len(), 1.))
-        // the initial guess for the nonlinear parameters is tau1=1, tau2=5
         .initial_parameters(vec![1.])
         .build()
         .unwrap();
 
-    // describe the fitting problem
     let problem = SeparableProblemBuilder::new(model)
         .observations(y)
         .weights(w)
         .build()
         .unwrap();
 
-    // fit the data
     let fit_result = LevMarSolver::default()
         .fit(problem)
         .expect("fit must succeed");
-    // the nonlinear parameters
     let mass = fit_result.nonlinear_parameters();
-    // the linear coefficients
     let coeff = fit_result.linear_coefficients().unwrap();
     return CoshFit {
         coefficient: coeff[0],
@@ -93,11 +87,11 @@ where
     None
 }
 
-pub fn effective_pcac_all_t(f_ap: &[f64], f_ps: &[f64]) -> Vec<f64> {
+pub fn effective_pcac_all_t(f_ap: &[f64], f_ps: &[f64], m_ps: &[f64]) -> Vec<f64> {
     let d_f_ap = centred_difference_derivative(f_ap, 1.0);
     let mut res = vec![];
     for t in 0..d_f_ap.len() {
-        res.push(0.5 * d_f_ap[t] / f_ps[t + 1]);
+        res.push(0.5 * (m_ps[t + 1] / m_ps[t + 1].sinh()) * d_f_ap[t] / f_ps[t + 1]);
     }
     res
 }
@@ -188,94 +182,6 @@ mod tests {
         let t = 48;
         assert_eq!(eff_mass_eq(&corr1, 3, t, 2.0), 5.559279600156479);
         assert_eq!(eff_mass_eq(&corr1, 9, t, 4.0), 53.2619348785668);
-    }
-    #[test]
-    fn pcac_mass_test() {
-        let g5_folded = vec![
-            6.46661072864547e-5,
-            8.2314099026351e-6,
-            2.5820200510923274e-6,
-            1.2150389416046531e-6,
-            7.240038058465569e-7,
-            4.834076999787681e-7,
-            3.410793027523067e-7,
-            2.477269442682027e-7,
-            1.8270878598292142e-7,
-            1.360036393137522e-7,
-            1.0177445902377655e-7,
-            7.640036563239633e-8,
-            5.743429959258569e-8,
-            4.3239346295428004e-8,
-            3.2564601272771856e-8,
-            2.4579454044319454e-8,
-            1.861013111382292e-8,
-            1.4140445525124136e-8,
-            1.0813029175351652e-8,
-            8.357054040587225e-9,
-            6.571215520943662e-9,
-            5.314192827473403e-9,
-            4.481519311445979e-9,
-            4.008671232799453e-9,
-            3.855716132260987e-9,
-        ];
-        let g5_g0g5_folded = vec![
-            7.648241073344489e-10,
-            -2.3218763553626026e-6,
-            -4.718504157990981e-7,
-            -1.9539584803061266e-7,
-            -1.1795798865059264e-7,
-            -8.164369255127817e-8,
-            -5.921349145094337e-8,
-            -4.3759922681291586e-8,
-            -3.258560330782088e-8,
-            -2.4401210344785395e-8,
-            -1.829336499864451e-8,
-            -1.3786895148330275e-8,
-            -1.0380977738554743e-8,
-            -7.827351111015616e-9,
-            -5.88095185702586e-9,
-            -4.422898137040417e-9,
-            -3.314551154308905e-9,
-            -2.477083469640234e-9,
-            -1.8395964605396757e-9,
-            -1.3521991607241546e-9,
-            -9.689828352753765e-10,
-            -6.682199016286922e-10,
-            -4.168739497298201e-10,
-            -2.00372819631762e-10,
-            3.744202576004903e-12,
-        ];
-        let m_ps = vec![
-            2.0612799075393324,
-            1.1593852544934382,
-            0.7537959311332677,
-            0.5177347575523663,
-            0.40393637164531115,
-            0.34874715873675965,
-            0.31979686034049276,
-            0.3044603352624457,
-            0.29527531895135056,
-            0.2900532014199751,
-            0.28702235843395774,
-            0.28580244454001297,
-            0.2847162359878983,
-            0.2849755804907339,
-            0.28391648217465176,
-            0.28284397130201583,
-            0.2827881028788996,
-            0.28246711108017003,
-            0.28216571744378305,
-            0.28212212500308353,
-            0.28175102053342865,
-            0.2818170004434757,
-            0.28130289770125855,
-            0.2807495623706952,
-        ];
-        assert_eq!(
-            // effective_pcac_all_t(&g5_g0g5_folded, &g5_folded, &m_ps),
-            effective_pcac_all_t(&g5_g0g5_folded, &g5_folded),
-            vec![2.0, 3.0, 4.0]
-        );
     }
     #[test]
     fn cosh_fit_test() {

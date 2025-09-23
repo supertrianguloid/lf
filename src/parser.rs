@@ -1,5 +1,5 @@
 use crate::bootstrap::{bootstrap, BootstrapResult};
-use crate::io::load_channel_from_file_folded;
+use crate::io::{load_channel_from_file_folded, load_plaquette_from_file};
 use crate::observables::{Measurement, ObservableCalculation};
 use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac_all_t};
 use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
@@ -59,6 +59,11 @@ enum Command {
         #[clap(flatten)]
         args: SummaryArgs,
     },
+    /// Extract the plaquette. Must be run on the WF data.
+    Plaquette {
+        #[clap(flatten)]
+        args: PlaquetteArgs,
+    },
     // ComputePCACMass {
     // #[clap(flatten)]
     // args: ComputePCACMassArgs,
@@ -75,6 +80,10 @@ pub struct HMCArgs {
 
 #[derive(Parser, Debug)]
 pub struct SummaryArgs {
+    pub filename: String,
+}
+#[derive(Parser, Debug)]
+pub struct PlaquetteArgs {
     pub filename: String,
 }
 
@@ -182,13 +191,18 @@ struct BootstrapFitsRatioArgs {
     denominator_effective_mass_t_min: usize,
 }
 
-#[derive(Parser, Debug)]
-struct ComputePCACMassArgs {
-    #[clap(flatten)]
-    hmc: HMCArgs,
-    #[clap(flatten)]
-    boot: BinBootstrapArgs,
-}
+// #[derive(Parser, Debug)]
+// struct ComputePCACMassArgs {
+//     #[clap(flatten)]
+//     hmc: HMCArgs,
+//     #[clap(flatten)]
+//     boot: BinBootstrapArgs,
+//     solver_precision: f64,
+//     #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
+//     effective_mass_t_max: usize,
+//     #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
+//     effective_mass_t_min: usize,
+// }
 
 #[derive(Parser, Debug)]
 struct BootstrapErrorArgs {
@@ -208,17 +222,21 @@ struct EffectiveMass {
     #[serde(rename = "Failed Samples (%)")]
     failures: Vec<f64>,
 }
-#[derive(Debug, Serialize, Deserialize)]
-struct PCACMass {
-    #[serde(rename = "Tau")]
-    tau: Vec<usize>,
-    #[serde(rename = "Effective Mass")]
-    mass: Vec<f64>,
-}
+// #[derive(Debug, Serialize, Deserialize)]
+// struct PCACMass {
+//     #[serde(rename = "Tau")]
+//     tau: Vec<usize>,
+//     #[serde(rename = "Effective Mass")]
+//     mass: Vec<f64>,
+// }
 
 #[derive(Debug, Serialize)]
 struct Summary {
     nconfs: usize,
+}
+#[derive(Debug, Serialize)]
+struct Plaquette {
+    plaquette: Vec<f64>,
 }
 
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
@@ -352,33 +370,71 @@ fn extract_tc_command(args: ExtractTCArgs) {
         serde_json::to_string(&extract_tc(wf.data, args.t_ref).unwrap()).unwrap()
     )
 }
-// fn compute_pcac_mass_command(args: ComputePCACMassArgs) {
+// fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
+//     let channel = ObservableCalculation::load(&args.hmc, args.channel);
+
+//     let mut solve_failures = vec![];
+//     let mut effmass_mean = vec![];
+//     let mut effmass_error = vec![];
+//     assert_eq!(channel.global_t, (channel.obs.each_len - 1) * 2);
+//     for tau in args.effective_mass_t_min..=args.effective_mass_t_max {
+//         let results: Vec<Result<f64, roots::SearchError>> = (0..args.boot.n_boot)
+//             .into_par_iter()
+//             .map(|_| {
+//                 let Measurement {
+//                     values: mu,
+//                     errors: _,
+//                 } = channel.obs.get_subsample_mean_stderr(args.boot.binwidth);
+//                 effective_mass(&mu, channel.global_t, tau, args.solver_precision)
+//             })
+//             .collect();
+//         let mut effmass_inner = Vec::with_capacity(args.boot.n_boot);
+//         let mut nfailures = 0;
+//         for result in results {
+//             match result {
+//                 Ok(val) => effmass_inner.push(val),
+//                 Err(_) => nfailures += 1,
+//             }
+//         }
+//         solve_failures.push(100.0 * (nfailures as f64) / (args.boot.n_boot as f64));
+//         effmass_mean.push(mean(&effmass_inner));
+//         effmass_error.push(standard_deviation(&effmass_inner, true));
+//     }
 //     let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
 //     let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
+
 //     let func = |samples: Vec<usize>| {
+//         let f_ps_sample = f_ps
+//             .obs
+//             .get_subsample_mean_stderr_from_samples(&samples)
+//             .values;
 //         effective_pcac_all_t(
 //             &f_ap
 //                 .obs
 //                 .get_subsample_mean_stderr_from_samples(&samples)
 //                 .values,
-//             &f_ps
-//                 .obs
-//                 .get_subsample_mean_stderr_from_samples(&samples)
-//                 .values,
+//             f_ps_sample,
+//             &ffective_mass_all_t(
+//                 &f_ps_sample,
+//                 f_ps.global_t,
+//                 1,
+//                 f_ps.global_t / 2,
+//                 args.solver_precision,
+//             ),
 //         )
 //     };
-//     let results = bootstrap(func, f_ap.obs.nconfs, args.boot);
-//     println!(
-//         "{}",
-//         serde_json::to_string(&PCACMass {
-//             tau: (1..(f_ap.global_t / 2)).collect(),
-//             mass: effective_pcac_all_t(
-//                 &f_ap.obs.get_subsample_mean_stderr(1).values,
-//                 &f_ps.obs.get_subsample_mean_stderr(1).values,
-//             ),
-//         })
-//         .unwrap()
-//     );
+// let results = bootstrap(func, f_ap.obs.nconfs, args.boot);
+// println!(
+//     "{}",
+//     serde_json::to_string(&PCACMass {
+//         tau: (1..(f_ap.global_t / 2)).collect(),
+//         mass: effective_pcac_all_t(
+//             &f_ap.obs.get_subsample_mean_stderr(1).values,
+//             &f_ps.obs.get_subsample_mean_stderr(1).values,
+//         ),
+//     })
+//     .unwrap()
+// );
 // }
 
 fn histogram_command(args: HistogramArgs) {
@@ -401,6 +457,13 @@ fn summary_command(args: SummaryArgs) {
         .unwrap()
     );
 }
+fn plaquette_command(args: PlaquetteArgs) {
+    let plaq = load_plaquette_from_file(&args.filename);
+    println!(
+        "{}",
+        serde_json::to_string(&Plaquette { plaquette: plaq }).unwrap()
+    );
+}
 
 pub fn parser() {
     let app = App::parse();
@@ -413,7 +476,8 @@ pub fn parser() {
         Command::ExtractTC { args } => extract_tc_command(args),
         Command::Histogram { args } => histogram_command(args),
         Command::Summary { args } => summary_command(args),
-        // Command::ComputePCACMass { args } => compute_pcac_mass_command(args),
+        Command::Plaquette { args } => plaquette_command(args),
+        // Command::ComputePCACMass { args } => compute_effective_pcac_mass_command(args),
         Command::GenerateCompletions {} => {
             generate(Nushell, &mut App::command(), "reshotka", &mut stdout())
         }
