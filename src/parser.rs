@@ -459,10 +459,7 @@ fn summary_command(args: SummaryArgs) {
 }
 fn plaquette_command(args: PlaquetteArgs) {
     let plaq = load_plaquette_from_file(&args.filename);
-    println!(
-        "{}",
-        serde_json::to_string(&Plaquette { plaquette: plaq }).unwrap()
-    );
+    println!("{}", serde_json::to_string(&plaq).unwrap());
 }
 
 pub fn parser() {
