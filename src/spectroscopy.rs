@@ -87,13 +87,9 @@ where
     None
 }
 
-pub fn effective_pcac_all_t(f_ap: &[f64], f_ps: &[f64], m_ps: &[f64]) -> Vec<f64> {
+pub fn effective_pcac(f_ap: &[f64], f_ps: &[f64], m_ps: &[f64], t: usize) -> f64 {
     let d_f_ap = centred_difference_derivative(f_ap, 1.0);
-    let mut res = vec![];
-    for t in 0..d_f_ap.len() {
-        res.push(0.5 * (m_ps[t + 1] / m_ps[t + 1].sinh()) * d_f_ap[t] / f_ps[t + 1]);
-    }
-    res
+    0.5 * (m_ps[t + 1] / m_ps[t + 1].sinh()) * d_f_ap[t] / f_ps[t + 1]
 }
 
 pub fn effective_mass_all_t(

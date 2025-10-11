@@ -87,6 +87,10 @@ impl Observable {
             data,
         }
     }
+
+    pub fn get_mean_stderr(&self) -> Measurement {
+        self.get_subsample_mean_stderr_from_samples(&(0..(self.nconfs - 1)).collect::<Vec<usize>>())
+    }
 }
 
 #[cfg(test)]

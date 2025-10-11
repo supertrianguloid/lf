@@ -1,7 +1,7 @@
 use crate::bootstrap::{bootstrap, BootstrapResult};
 use crate::io::{load_channel_from_file_folded, load_plaquette_from_file};
 use crate::observables::{Measurement, ObservableCalculation};
-use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac_all_t};
+use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac};
 use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
 use crate::wilsonflow::{calculate_w0_from_samples, extract_tc, WilsonFlowCalculation};
 use clap::{CommandFactory, Parser, Subcommand};
@@ -64,10 +64,10 @@ enum Command {
         #[clap(flatten)]
         args: PlaquetteArgs,
     },
-    // ComputePCACMass {
-    // #[clap(flatten)]
-    // args: ComputePCACMassArgs,
-    // },
+    ComputePCACMass {
+        #[clap(flatten)]
+        args: ComputePCACMassArgs,
+    },
     GenerateCompletions {},
 }
 
@@ -118,10 +118,10 @@ struct ComputeEffectiveMassArgs {
     channel: String,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
-    #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
-    effective_mass_t_max: usize,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
     effective_mass_t_min: usize,
+    #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
+    effective_mass_t_max: usize,
 }
 
 #[derive(Parser, Debug)]
@@ -161,10 +161,10 @@ struct BootstrapFitsArgs {
     channel: String,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
-    #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
-    effective_mass_t_max: usize,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
     effective_mass_t_min: usize,
+    #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
+    effective_mass_t_max: usize,
     #[clap(flatten)]
     wf: Option<WFArgs>,
 }
@@ -181,28 +181,25 @@ struct BootstrapFitsRatioArgs {
     denominator_channel: String,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
-    #[arg(long, value_name = "NUMERATOR_EFFECTIVE_MASS_T_MAX")]
-    numerator_effective_mass_t_max: usize,
     #[arg(long, value_name = "NUMERATOR_EFFECTIVE_MASS_T_MIN")]
     numerator_effective_mass_t_min: usize,
-    #[arg(long, value_name = "DENOMINATOR_EFFECTIVE_MASS_T_MAX")]
-    denominator_effective_mass_t_max: usize,
+    #[arg(long, value_name = "NUMERATOR_EFFECTIVE_MASS_T_MAX")]
+    numerator_effective_mass_t_max: usize,
     #[arg(long, value_name = "DENOMINATOR_EFFECTIVE_MASS_T_MIN")]
     denominator_effective_mass_t_min: usize,
+    #[arg(long, value_name = "DENOMINATOR_EFFECTIVE_MASS_T_MAX")]
+    denominator_effective_mass_t_max: usize,
 }
 
-// #[derive(Parser, Debug)]
-// struct ComputePCACMassArgs {
-//     #[clap(flatten)]
-//     hmc: HMCArgs,
-//     #[clap(flatten)]
-//     boot: BinBootstrapArgs,
-//     solver_precision: f64,
-//     #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
-//     effective_mass_t_max: usize,
-//     #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
-//     effective_mass_t_min: usize,
-// }
+#[derive(Parser, Debug)]
+struct ComputePCACMassArgs {
+    #[clap(flatten)]
+    hmc: HMCArgs,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
+    #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
+    solver_precision: f64,
+}
 
 #[derive(Parser, Debug)]
 struct BootstrapErrorArgs {
@@ -222,21 +219,19 @@ struct EffectiveMass {
     #[serde(rename = "Failed Samples (%)")]
     failures: Vec<f64>,
 }
-// #[derive(Debug, Serialize, Deserialize)]
-// struct PCACMass {
-//     #[serde(rename = "Tau")]
-//     tau: Vec<usize>,
-//     #[serde(rename = "Effective Mass")]
-//     mass: Vec<f64>,
-// }
+#[derive(Debug, Serialize, Deserialize)]
+struct PCACMass {
+    #[serde(rename = "Tau")]
+    tau: Vec<usize>,
+    #[serde(rename = "Effective Mass")]
+    mass: Vec<f64>,
+    #[serde(rename = "Error")]
+    error: Vec<f64>,
+}
 
 #[derive(Debug, Serialize)]
 struct Summary {
     nconfs: usize,
-}
-#[derive(Debug, Serialize)]
-struct Plaquette {
-    plaquette: Vec<f64>,
 }
 
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
@@ -319,7 +314,7 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
         };
         Some(mean(&masses) * factor)
     };
-    let results = bootstrap(func, channel.obs.nconfs, args.boot);
+    let results = bootstrap(func, channel.obs.nconfs, &args.boot);
     results.print();
 }
 fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
@@ -352,14 +347,14 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
 
         Some(mean(&num_masses) / mean(&denom_masses))
     };
-    let results = bootstrap(func, numerator_channel.obs.nconfs, args.boot);
+    let results = bootstrap(func, numerator_channel.obs.nconfs, &args.boot);
 
     results.print();
 }
 fn calculate_w0_command(args: CalculateW0Args) {
     let wf = WilsonFlowCalculation::load(args.wf);
     let func = |samples: Vec<usize>| calculate_w0_from_samples(&wf.data, &samples, wf.w_ref);
-    let results = bootstrap(func, wf.data.t2_esym.nconfs, args.boot);
+    let results = bootstrap(func, wf.data.t2_esym.nconfs, &args.boot);
     results.print();
 }
 
@@ -370,72 +365,71 @@ fn extract_tc_command(args: ExtractTCArgs) {
         serde_json::to_string(&extract_tc(wf.data, args.t_ref).unwrap()).unwrap()
     )
 }
-// fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
-//     let channel = ObservableCalculation::load(&args.hmc, args.channel);
+fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
+    let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
+    let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
 
-//     let mut solve_failures = vec![];
-//     let mut effmass_mean = vec![];
-//     let mut effmass_error = vec![];
-//     assert_eq!(channel.global_t, (channel.obs.each_len - 1) * 2);
-//     for tau in args.effective_mass_t_min..=args.effective_mass_t_max {
-//         let results: Vec<Result<f64, roots::SearchError>> = (0..args.boot.n_boot)
-//             .into_par_iter()
-//             .map(|_| {
-//                 let Measurement {
-//                     values: mu,
-//                     errors: _,
-//                 } = channel.obs.get_subsample_mean_stderr(args.boot.binwidth);
-//                 effective_mass(&mu, channel.global_t, tau, args.solver_precision)
-//             })
-//             .collect();
-//         let mut effmass_inner = Vec::with_capacity(args.boot.n_boot);
-//         let mut nfailures = 0;
-//         for result in results {
-//             match result {
-//                 Ok(val) => effmass_inner.push(val),
-//                 Err(_) => nfailures += 1,
-//             }
-//         }
-//         solve_failures.push(100.0 * (nfailures as f64) / (args.boot.n_boot as f64));
-//         effmass_mean.push(mean(&effmass_inner));
-//         effmass_error.push(standard_deviation(&effmass_inner, true));
-//     }
-//     let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
-//     let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
+    let mut central_val = vec![];
 
-//     let func = |samples: Vec<usize>| {
-//         let f_ps_sample = f_ps
-//             .obs
-//             .get_subsample_mean_stderr_from_samples(&samples)
-//             .values;
-//         effective_pcac_all_t(
-//             &f_ap
-//                 .obs
-//                 .get_subsample_mean_stderr_from_samples(&samples)
-//                 .values,
-//             f_ps_sample,
-//             &ffective_mass_all_t(
-//                 &f_ps_sample,
-//                 f_ps.global_t,
-//                 1,
-//                 f_ps.global_t / 2,
-//                 args.solver_precision,
-//             ),
-//         )
-//     };
-// let results = bootstrap(func, f_ap.obs.nconfs, args.boot);
-// println!(
-//     "{}",
-//     serde_json::to_string(&PCACMass {
-//         tau: (1..(f_ap.global_t / 2)).collect(),
-//         mass: effective_pcac_all_t(
-//             &f_ap.obs.get_subsample_mean_stderr(1).values,
-//             &f_ps.obs.get_subsample_mean_stderr(1).values,
-//         ),
-//     })
-//     .unwrap()
-// );
-// }
+    for t in 0..(f_ap.obs.each_len - 2) {
+        central_val.push(effective_pcac(
+            &f_ap.obs.get_mean_stderr().values,
+            &f_ps.obs.get_mean_stderr().values,
+            &effective_mass_all_t(
+                &f_ps.obs.get_mean_stderr().values,
+                f_ps.global_t,
+                1,
+                f_ap.global_t / 2,
+                args.solver_precision,
+            )
+            .unwrap(),
+            t,
+        ));
+    }
+
+    let mut errors = vec![];
+    for t in 0..(f_ap.obs.each_len - 2) {
+        let func = |samples: Vec<usize>| {
+            Some(effective_pcac(
+                &f_ap
+                    .obs
+                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .values,
+                &f_ps
+                    .obs
+                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .values,
+                &effective_mass_all_t(
+                    &f_ps.obs.get_mean_stderr().values,
+                    f_ps.global_t,
+                    1,
+                    f_ap.global_t / 2,
+                    args.solver_precision,
+                )
+                .unwrap(),
+                t,
+            ))
+        };
+        errors.push(standard_deviation(
+            &bootstrap(func, f_ap.obs.nconfs, &args.boot).get_single_bootstrap_result(),
+            true,
+        ));
+    }
+
+    // let func = |samples: Vec<usize>| calculate_w0_from_samples(&wf.data, &samples, wf.w_ref);
+
+    // let results = bootstrap(func, wf.data.t2_esym.nconfs, args.boot);
+
+    println!(
+        "{}",
+        serde_json::to_string(&PCACMass {
+            tau: (1..(f_ap.global_t / 2)).collect(),
+            mass: central_val.clone(),
+            error: errors
+        })
+        .unwrap()
+    );
+}
 
 fn histogram_command(args: HistogramArgs) {
     if let BootstrapResult::SingleBootstrap(mut sample) =
@@ -474,7 +468,7 @@ pub fn parser() {
         Command::Histogram { args } => histogram_command(args),
         Command::Summary { args } => summary_command(args),
         Command::Plaquette { args } => plaquette_command(args),
-        // Command::ComputePCACMass { args } => compute_effective_pcac_mass_command(args),
+        Command::ComputePCACMass { args } => compute_effective_pcac_mass_command(args),
         Command::GenerateCompletions {} => {
             generate(Nushell, &mut App::command(), "reshotka", &mut stdout())
         }

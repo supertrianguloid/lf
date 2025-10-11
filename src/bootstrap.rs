@@ -13,6 +13,12 @@ impl BootstrapResult {
     pub fn print(&self) {
         println!("{}", serde_json::to_string(&self).unwrap());
     }
+    pub fn get_single_bootstrap_result(self) -> Vec<f64> {
+        match self {
+            BootstrapResult::SingleBootstrap(v) => v,
+            BootstrapResult::DoubleBootstrap(_) => unimplemented!(),
+        }
+    }
 }
 // #[inline(always)]
 pub fn get_samples(length: usize, binsize: usize) -> Vec<usize> {
@@ -36,7 +42,7 @@ pub fn get_subsample(sample: &[usize]) -> Vec<usize> {
     }
     result
 }
-pub fn bootstrap<T>(func: T, length: usize, boot_args: BinBootstrapArgs) -> BootstrapResult
+pub fn bootstrap<T>(func: T, length: usize, boot_args: &BinBootstrapArgs) -> BootstrapResult
 where
     T: Fn(Vec<usize>) -> Option<f64> + Sync + Send,
 {
