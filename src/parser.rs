@@ -1,5 +1,5 @@
 use crate::bootstrap::{bootstrap, BootstrapResult};
-use crate::io::{load_channel_from_file_folded, load_plaquette_from_file};
+use crate::io::load_plaquette_from_file;
 use crate::observables::{Measurement, ObservableCalculation};
 use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac};
 use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
@@ -55,10 +55,6 @@ enum Command {
         #[clap(flatten)]
         args: HistogramArgs,
     },
-    Summary {
-        #[clap(flatten)]
-        args: SummaryArgs,
-    },
     /// Extract the plaquette. Must be run on the WF data.
     Plaquette {
         #[clap(flatten)]
@@ -78,10 +74,6 @@ pub struct HMCArgs {
     pub thermalisation: usize,
 }
 
-#[derive(Parser, Debug)]
-pub struct SummaryArgs {
-    pub filename: String,
-}
 #[derive(Parser, Debug)]
 pub struct PlaquetteArgs {
     pub filename: String,
@@ -227,11 +219,6 @@ struct PCACMass {
     mass: Vec<f64>,
     #[serde(rename = "Error")]
     error: Vec<f64>,
-}
-
-#[derive(Debug, Serialize)]
-struct Summary {
-    nconfs: usize,
 }
 
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
@@ -441,16 +428,6 @@ fn histogram_command(args: HistogramArgs) {
     }
 }
 
-fn summary_command(args: SummaryArgs) {
-    let channel = load_channel_from_file_folded(&args.filename, "g5");
-    println!(
-        "{}",
-        serde_json::to_string(&Summary {
-            nconfs: channel.nconfs,
-        })
-        .unwrap()
-    );
-}
 fn plaquette_command(args: PlaquetteArgs) {
     let plaq = load_plaquette_from_file(&args.filename);
     println!("{}", serde_json::to_string(&plaq).unwrap());
@@ -466,7 +443,6 @@ pub fn parser() {
         Command::CalculateW0 { args } => calculate_w0_command(args),
         Command::ExtractTC { args } => extract_tc_command(args),
         Command::Histogram { args } => histogram_command(args),
-        Command::Summary { args } => summary_command(args),
         Command::Plaquette { args } => plaquette_command(args),
         Command::ComputePCACMass { args } => compute_effective_pcac_mass_command(args),
         Command::GenerateCompletions {} => {
