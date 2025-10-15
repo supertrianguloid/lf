@@ -229,15 +229,6 @@ struct EffectiveMass {
     #[serde(rename = "Failed Samples (%)")]
     failures: Vec<f64>,
 }
-#[derive(Debug, Serialize, Deserialize)]
-struct PCACMass {
-    #[serde(rename = "Tau")]
-    tau: Vec<usize>,
-    #[serde(rename = "Effective Mass")]
-    mass: Vec<f64>,
-    #[serde(rename = "Error")]
-    error: Vec<f64>,
-}
 
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
     let EffectiveMass {
@@ -397,8 +388,7 @@ fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
                     1,
                     f_ap.global_t / 2,
                     args.solver_precision,
-                )
-                .unwrap(),
+                )?,
                 t,
             ))
         };
@@ -415,13 +405,14 @@ fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
 
     println!(
         "{}",
-        serde_json::to_string(&PCACMass {
-            tau: (1..(f_ap.global_t / 2)).collect(),
-            mass: central_val.clone(),
-            error: errors
+        serde_json::to_string(&EffectiveMass {
+            tau: (0..(f_ap.obs.each_len - 2)).collect(),
+            mass: central_val,
+            error: errors,
+            failures: std::iter::repeat(0.0).take(f_ap.obs.each_len - 2).collect(),
         })
         .unwrap()
-    );
+    )
 }
 fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
     let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
