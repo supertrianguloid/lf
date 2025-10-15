@@ -1,4 +1,4 @@
-use crate::bootstrap::{bootstrap, BootstrapResult};
+use crate::bootstrap::{bootstrap, get_samples, BootstrapResult};
 use crate::io::load_plaquette_from_file;
 use crate::observables::{Measurement, ObservableCalculation};
 use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac};
@@ -63,6 +63,10 @@ enum Command {
     ComputePCACMass {
         #[clap(flatten)]
         args: ComputePCACMassArgs,
+    },
+    ComputePCACMassFit {
+        #[clap(flatten)]
+        args: ComputePCACMassFitArgs,
     },
     GenerateCompletions {},
 }
@@ -189,6 +193,20 @@ struct ComputePCACMassArgs {
     hmc: HMCArgs,
     #[clap(flatten)]
     boot: BinBootstrapArgs,
+    #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
+    solver_precision: f64,
+}
+
+#[derive(Parser, Debug)]
+struct ComputePCACMassFitArgs {
+    #[clap(flatten)]
+    hmc: HMCArgs,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
+    #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
+    effective_mass_t_min: usize,
+    #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
+    effective_mass_t_max: usize,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
 }
@@ -357,24 +375,8 @@ fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
     let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
 
     let mut central_val = vec![];
-
-    for t in 0..(f_ap.obs.each_len - 2) {
-        central_val.push(effective_pcac(
-            &f_ap.obs.get_mean_stderr().values,
-            &f_ps.obs.get_mean_stderr().values,
-            &effective_mass_all_t(
-                &f_ps.obs.get_mean_stderr().values,
-                f_ps.global_t,
-                1,
-                f_ap.global_t / 2,
-                args.solver_precision,
-            )
-            .unwrap(),
-            t,
-        ));
-    }
-
     let mut errors = vec![];
+
     for t in 0..(f_ap.obs.each_len - 2) {
         let func = |samples: Vec<usize>| {
             Some(effective_pcac(
@@ -387,7 +389,10 @@ fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
                     .get_subsample_mean_stderr_from_samples(&samples)
                     .values,
                 &effective_mass_all_t(
-                    &f_ps.obs.get_mean_stderr().values,
+                    &f_ps
+                        .obs
+                        .get_subsample_mean_stderr_from_samples(&samples)
+                        .values,
                     f_ps.global_t,
                     1,
                     f_ap.global_t / 2,
@@ -397,6 +402,7 @@ fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
                 t,
             ))
         };
+        central_val.push(func(get_samples(f_ap.obs.nconfs, args.boot.binwidth)).unwrap());
         errors.push(standard_deviation(
             &bootstrap(func, f_ap.obs.nconfs, &args.boot).get_single_bootstrap_result(),
             true,
@@ -416,6 +422,43 @@ fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
         })
         .unwrap()
     );
+}
+fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
+    let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
+    let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
+
+    let func = |samples: Vec<usize>| {
+        let mut mass = vec![];
+        for t in args.effective_mass_t_min..=args.effective_mass_t_max {
+            mass.push(effective_pcac(
+                &f_ap
+                    .obs
+                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .values,
+                &f_ps
+                    .obs
+                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .values,
+                &effective_mass_all_t(
+                    &f_ps
+                        .obs
+                        .get_subsample_mean_stderr_from_samples(&samples)
+                        .values,
+                    f_ps.global_t,
+                    1,
+                    f_ap.global_t / 2,
+                    args.solver_precision,
+                )
+                .unwrap(),
+                t,
+            ));
+        }
+        Some(mean(&mass))
+    };
+
+    let results = bootstrap(func, f_ap.obs.nconfs, &args.boot);
+
+    results.print()
 }
 
 fn histogram_command(args: HistogramArgs) {
@@ -445,6 +488,7 @@ pub fn parser() {
         Command::Histogram { args } => histogram_command(args),
         Command::Plaquette { args } => plaquette_command(args),
         Command::ComputePCACMass { args } => compute_effective_pcac_mass_command(args),
+        Command::ComputePCACMassFit { args } => bootstrap_pcac_fit_command(args),
         Command::GenerateCompletions {} => {
             generate(Nushell, &mut App::command(), "reshotka", &mut stdout())
         }

@@ -3,7 +3,6 @@ use crate::wilsonflow::{WilsonFlow, WilsonFlowObservables};
 use std::fs::{read_to_string, File};
 
 use std::io::{BufRead, BufReader};
-use std::iter::Inspect;
 
 #[derive(Clone, Copy)]
 pub enum SymmetryType {
