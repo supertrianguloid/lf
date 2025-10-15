@@ -430,6 +430,17 @@ fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
     let func = |samples: Vec<usize>| {
         let mut mass = vec![];
         for t in args.effective_mass_t_min..=args.effective_mass_t_max {
+            let m_ps_eff = effective_mass_all_t(
+                &f_ps
+                    .obs
+                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .values,
+                f_ps.global_t,
+                1,
+                f_ap.global_t / 2,
+                args.solver_precision,
+            )?;
+
             mass.push(effective_pcac(
                 &f_ap
                     .obs
@@ -439,17 +450,7 @@ fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
                     .obs
                     .get_subsample_mean_stderr_from_samples(&samples)
                     .values,
-                &effective_mass_all_t(
-                    &f_ps
-                        .obs
-                        .get_subsample_mean_stderr_from_samples(&samples)
-                        .values,
-                    f_ps.global_t,
-                    1,
-                    f_ap.global_t / 2,
-                    args.solver_precision,
-                )
-                .unwrap(),
+                &m_ps_eff,
                 t,
             ));
         }
