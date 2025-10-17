@@ -454,8 +454,12 @@ fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
 }
 
 fn histogram_command(args: HistogramArgs) {
-    if let BootstrapResult::SingleBootstrap(mut sample) =
-        serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
+    if let BootstrapResult::SingleBootstrap {
+        replicas: mut sample,
+        central_val: _,
+        z: _,
+        a: _,
+    } = serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
     {
         sample.par_sort_unstable_by(f64::total_cmp);
         let hist = bin(&sample, args.nbins);

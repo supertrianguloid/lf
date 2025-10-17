@@ -6,7 +6,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum BootstrapResult {
-    SingleBootstrap(Vec<f64>),
+    SingleBootstrap {
+        replicas: Vec<f64>,
+        central_val: f64,
+        z: f64,
+        a: f64,
+    },
     DoubleBootstrap(Vec<Vec<f64>>),
 }
 impl BootstrapResult {
@@ -15,7 +20,12 @@ impl BootstrapResult {
     }
     pub fn get_single_bootstrap_result(self) -> Vec<f64> {
         match self {
-            BootstrapResult::SingleBootstrap(v) => v,
+            BootstrapResult::SingleBootstrap {
+                replicas: v,
+                central_val: _,
+                z: _,
+                a: _,
+            } => v,
             BootstrapResult::DoubleBootstrap(_) => unimplemented!(),
         }
     }
@@ -72,12 +82,20 @@ where
                 .collect::<Vec<Vec<f64>>>(),
         )
     } else {
-        BootstrapResult::SingleBootstrap(drop_nones(
+        let replicas = drop_nones(
             (0..boot_args.n_boot)
                 .into_par_iter()
                 .map(|_| func(get_samples(length, boot_args.binwidth)))
                 .collect(),
-        ))
+        );
+        let central_val =
+            func((0..length).collect()).expect("Should be able to evaluate the central value!");
+        BootstrapResult::SingleBootstrap {
+            replicas: replicas,
+            central_val: central_val,
+            z: 0.0,
+            a: 0.0,
+        }
     }
 }
 
