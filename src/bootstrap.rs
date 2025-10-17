@@ -98,6 +98,23 @@ where
         }
     }
 }
+pub fn jackknife_samples<T, F>(data: &[T], stat: F) -> Vec<f64>
+where
+    T: Clone,
+    F: Fn(&[T]) -> f64,
+{
+    let n = data.len();
+    let mut out = Vec::with_capacity(n);
+    let mut buf = Vec::with_capacity(n.saturating_sub(1));
+
+    for i in 0..n {
+        buf.clear();
+        buf.extend_from_slice(&data[..i]);
+        buf.extend_from_slice(&data[i + 1..]);
+        out.push(stat(&buf));
+    }
+    out
+}
 
 #[cfg(test)]
 #[test]
@@ -107,4 +124,11 @@ fn test_bootstrap_binning_samples() {
 #[test]
 fn test_bootstrap_no_binning_samples() {
     assert_eq!(get_samples(100, 1).len(), 100);
+}
+#[test]
+fn test_jackknife() {
+    assert_eq!(
+        jackknife_samples(&vec![1.0, 2.0, 3.0], |x| x.iter().sum()),
+        vec![100.0]
+    );
 }
