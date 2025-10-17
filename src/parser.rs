@@ -13,10 +13,10 @@ use std::{fs::read_to_string, io::stdout};
 
 #[derive(Parser, Debug)]
 #[clap(
-    name = "Reshotka",
+    name = "lf",
     version = "0.0.1",
     author = "Laurence Sebastian Bowes",
-    about = "A tool for SU(2) analysis"
+    about = "A tool for fitting lattice data."
 )]
 pub struct App {
     #[clap(subcommand)]

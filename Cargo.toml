@@ -1,11 +1,11 @@
 [package]
-name = "reshotka"
-description = "A tool for HiRep simulation analysis."
+name = "lf"
+description = "A tool for fitting lattice data."
 version = "0.0.1"
 edition = "2021"
 rust-version = "1.76"
 license = "GPL-3.0-only"
-repository = "https://github.com/supertrianguloid/reshotka"
+repository = "https://github.com/supertrianguloid/lf"
 
 [dependencies]
 clap = { version = "4.5.48", features = ["derive"] }
