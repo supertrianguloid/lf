@@ -22,6 +22,7 @@ pub enum BootstrapResult {
         ci_99: (f64, f64),
         failed_samples: usize,
         histogram: Histogram,
+        central_square: f64,
         square_error: f64,
     },
     DoubleBootstrap(Vec<Vec<f64>>),
@@ -46,6 +47,7 @@ impl BootstrapResult {
                 stddev: _,
                 histogram: _,
                 failed_samples: _,
+                central_square: _,
                 square_error: _,
             } => v,
             BootstrapResult::DoubleBootstrap(_) => unimplemented!(),
@@ -154,6 +156,7 @@ where
             z: z,
             a: a,
             square_error: 2.0 * mean * stddev,
+            central_square: central_val.powi(2),
         }
     }
 }
