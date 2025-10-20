@@ -7,10 +7,10 @@ pub struct SingleMeasurement {
     error: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct HistogramRow {
-    bin_centre: f64,
-    frequency: usize,
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct Histogram {
+    bin_centres: Vec<f64>,
+    frequencies: Vec<usize>,
 }
 pub fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
@@ -31,14 +31,13 @@ pub fn standard_error(values: &[f64]) -> f64 {
         .sqrt()
         / values.len() as f64
 }
-#[allow(dead_code)]
 /// Performs the naive error propagation assuming `v1` and `v2` are independent.
-pub fn propagate_ratio(v1: SingleMeasurement, v2: SingleMeasurement) -> SingleMeasurement {
-    SingleMeasurement {
-        value: v1.value / v2.value,
-        error: ((v1.error / v1.value).powi(2) + (v2.error / v2.value).powi(2)).sqrt(),
-    }
-}
+// pub fn propagate_ratio(v1: SingleMeasurement, v2: SingleMeasurement) -> SingleMeasurement {
+// SingleMeasurement {
+// value: v1.value / v2.value,
+// error: ((v1.error / v1.value).powi(2) + (v2.error / v2.value).powi(2)).sqrt(),
+// }
+// }
 
 pub fn line_of_best_fit(x: &[f64], y: &[f64]) -> (f64, f64) {
     let xbar = mean(x);
@@ -83,35 +82,71 @@ pub fn weighted_mean(sample: &[f64], errors: &[f64]) -> (f64, f64) {
     )
 }
 
-pub fn bin(data: &[f64], nbins: usize) -> Vec<HistogramRow> {
-    let lower = data.iter().min_by(|a, b| a.total_cmp(b)).unwrap();
-    let upper = data.iter().max_by(|a, b| a.total_cmp(b)).unwrap();
-    let stepsize = (upper - lower) / (nbins as f64);
-    let mut bin_ranges = vec![];
-    for i in 0..(nbins + 1) {
-        bin_ranges.push(lower + (i as f64) * stepsize);
+pub fn bin(data: &[f64], nbins: usize) -> Histogram {
+    assert!(nbins > 0, "nbins must be > 0");
+    assert!(!data.is_empty(), "data must be non-empty");
+
+    // Optionally ignore non-finite values; keep them if you prefer.
+    let finite: Vec<f64> = data.iter().copied().filter(|v| v.is_finite()).collect();
+    assert!(!finite.is_empty(), "no finite values in data");
+
+    // Find bounds (deref the &f64 from iterators)
+    let lower = finite.iter().copied().reduce(f64::min).unwrap();
+    let upper = finite.iter().copied().reduce(f64::max).unwrap();
+
+    // Handle degenerate case: all values equal
+    let span = upper - lower;
+    let stepsize = if span > 0.0 { span / nbins as f64 } else { 1.0 };
+
+    // Precompute centres as true midpoints
+    let bin_centres: Vec<f64> = (0..nbins)
+        .map(|i| lower + (i as f64 + 0.5) * stepsize)
+        .collect();
+
+    // Count in O(n); clamp right edge into the last bin
+    let mut frequencies = vec![0usize; nbins];
+    if span == 0.0 {
+        // put all mass in the middle bin (or choose 0; policy choice)
+        frequencies[nbins / 2] = finite.len();
+    } else {
+        for &v in &finite {
+            let mut idx = ((v - lower) / stepsize).floor() as isize;
+            if idx < 0 {
+                idx = 0;
+            }
+            if idx as usize >= nbins {
+                idx = nbins as isize - 1;
+            } // includes v == upper
+            frequencies[idx as usize] += 1;
+        }
     }
-    let mut freq: Vec<usize> = vec![0; nbins];
-    freq[0] = data.iter().filter(|x| *x == lower).count();
-    let windows: Vec<_> = bin_ranges.windows(2).collect();
-    for i in 0..nbins {
-        freq[i] = data
-            .iter()
-            .filter(|x| **x > windows[i][0] && **x <= windows[i][1])
-            .count();
+
+    Histogram {
+        bin_centres,
+        frequencies,
     }
-    bin_ranges.truncate(nbins);
-    let bin_centres: Vec<f64> = bin_ranges.iter().map(|x| x + stepsize / 2.0).collect();
-    assert!(freq.len() == bin_ranges.len());
-    let mut histogram = vec![];
-    for i in 0..freq.len() {
-        histogram.push(HistogramRow {
-            bin_centre: bin_centres[i],
-            frequency: freq[i],
-        })
-    }
-    histogram
 }
+
+// freq[0] = data.iter().filter(|x| *x == lower).count();
+// let windows: Vec<_> = bin_ranges.windows(2).collect();
+// for i in 0..nbins {
+//     freq[i] = data
+//         .iter()
+//         .filter(|x| **x > windows[i][0] && **x <= windows[i][1])
+//         .count();
+// }
+// bin_ranges.truncate(nbins);
+// let bin_centres: Vec<f64> = bin_ranges.iter().map(|x| x + stepsize / 2.0).collect();
+// assert!(freq.len() == bin_ranges.len());
+// let mut histogram = vec![];
+// for i in 0..freq.len() {
+//     histogram.push(HistogramRow {
+//         bin_centre: bin_centres[i],
+//         frequency: freq[i],
+//     })
+// }
+// histogram
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,21 +187,32 @@ mod tests {
         assert_eq!(weighted_mean(&sample, &err), w_mean);
     }
     #[test]
-    fn propagate_ratio_test() {
-        let v1 = SingleMeasurement {
-            value: 1.45,
-            error: 0.3,
-        };
-        let v2 = SingleMeasurement {
-            value: 3.24,
-            error: 0.63,
-        };
+    fn histogram_test() {
+        let data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         assert_eq!(
-            propagate_ratio(v1, v2),
-            SingleMeasurement {
-                value: 0.4475308641975308,
-                error: 0.2839274997083719
+            bin(&data, 4),
+            Histogram {
+                bin_centres: vec![1.5, 2.5, 3.5, 4.5],
+                frequencies: vec![1, 1, 1, 2]
             }
         )
     }
+    // #[test]
+    // fn propagate_ratio_test() {
+    //     let v1 = SingleMeasurement {
+    //         value: 1.45,
+    //         error: 0.3,
+    //     };
+    //     let v2 = SingleMeasurement {
+    //         value: 3.24,
+    //         error: 0.63,
+    //     };
+    //     assert_eq!(
+    //         propagate_ratio(v1, v2),
+    //         SingleMeasurement {
+    //             value: 0.4475308641975308,
+    //             error: 0.2839274997083719
+    //         }
+    //     )
+    // }
 }

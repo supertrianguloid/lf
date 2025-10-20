@@ -51,10 +51,6 @@ enum Command {
         #[clap(flatten)]
         args: ExtractTCArgs,
     },
-    Histogram {
-        #[clap(flatten)]
-        args: HistogramArgs,
-    },
     /// Extract the plaquette. Must be run on the WF data.
     Plaquette {
         #[clap(flatten)]
@@ -102,6 +98,8 @@ pub struct BinBootstrapArgs {
     pub binwidth: usize,
     #[arg(long, value_name = "DOUBLE_BOOTSTRAP_SAMPLES")]
     pub n_boot_double: Option<u32>,
+    #[arg(long, value_name = "HISTOGRAM_BINS")]
+    pub n_bins_histogram: usize,
 }
 
 #[derive(Parser, Debug)]
@@ -127,11 +125,6 @@ struct FitEffectiveMassArgs {
     t2: usize,
 }
 
-#[derive(Parser, Debug)]
-struct HistogramArgs {
-    json_filename: String,
-    nbins: usize,
-}
 #[derive(Parser, Debug)]
 struct CalculateW0Args {
     #[clap(flatten)]
@@ -453,19 +446,24 @@ fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
     results.print()
 }
 
-fn histogram_command(args: HistogramArgs) {
-    if let BootstrapResult::SingleBootstrap {
-        replicas: mut sample,
-        central_val: _,
-        z: _,
-        a: _,
-    } = serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
-    {
-        sample.par_sort_unstable_by(f64::total_cmp);
-        let hist = bin(&sample, args.nbins);
-        println!("{}", serde_json::to_string(&hist).unwrap());
-    }
-}
+// fn histogram_command(args: HistogramArgs) {
+//     if let BootstrapResult::SingleBootstrap {
+//         n_boot: _,
+//         replicas: mut sample,
+//         central_val: _,
+//         z: _,
+//         a: _,
+//         ci_68: _,
+//         ci_95: _,
+//         ci_99: _,
+//         failed_samples: _,
+//     } = serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
+//     {
+//         sample.par_sort_unstable_by(f64::total_cmp);
+//         let hist = bin(&sample, args.nbins);
+//         println!("{}", serde_json::to_string(&hist).unwrap());
+//     }
+// }
 
 fn plaquette_command(args: PlaquetteArgs) {
     let plaq = load_plaquette_from_file(&args.filename);
@@ -481,7 +479,7 @@ pub fn parser() {
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
         Command::CalculateW0 { args } => calculate_w0_command(args),
         Command::ExtractTC { args } => extract_tc_command(args),
-        Command::Histogram { args } => histogram_command(args),
+        // Command::Histogram { args } => histogram_command(args),
         Command::Plaquette { args } => plaquette_command(args),
         Command::ComputePCACMass { args } => compute_effective_pcac_mass_command(args),
         Command::ComputePCACMassFit { args } => bootstrap_pcac_fit_command(args),
