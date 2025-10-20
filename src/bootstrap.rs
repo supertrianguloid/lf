@@ -1,5 +1,5 @@
 use crate::parser::BinBootstrapArgs;
-use crate::statistics::{bin, mean, Histogram};
+use crate::statistics::{bin, mean, standard_deviation, Histogram};
 use rand::distr::{Distribution, Uniform};
 use rand::Rng;
 use rayon::prelude::*;
@@ -16,6 +16,7 @@ pub enum BootstrapResult {
         a: f64,
         median: f64,
         mean: f64,
+        stddev: f64,
         ci_68: (f64, f64),
         ci_95: (f64, f64),
         ci_99: (f64, f64),
@@ -41,6 +42,7 @@ impl BootstrapResult {
                 ci_99: _,
                 median: _,
                 mean: _,
+                stddev: _,
                 histogram: _,
                 failed_samples: _,
             } => v,
@@ -140,6 +142,7 @@ where
             n_boot: boot_args.n_boot,
             median: replicas[replicas.len() / 2],
             mean: mean(&replicas),
+            stddev: standard_deviation(&replicas, true),
             histogram: bin(&replicas, boot_args.n_bins_histogram),
             failed_samples: boot_args.n_boot - replicas.len(),
             replicas: replicas,
