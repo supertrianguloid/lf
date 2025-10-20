@@ -198,6 +198,8 @@ struct MedianArgs {
     json_filename: String,
     #[clap(flatten)]
     boot: BinBootstrapArgs,
+    #[arg(short, long, value_name = "THERMALISATION", default_value_t = 0)]
+    thermalisation: usize,
 }
 
 #[derive(Parser, Debug)]
@@ -464,6 +466,7 @@ fn median_command(args: MedianArgs) {
     if let Data { data: mut data } =
         serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
     {
+        let data = data.split_off(args.thermalisation);
         let func = |samples: Vec<usize>| {
             let mut smp = vec![];
             for sample in samples {
@@ -489,7 +492,6 @@ pub fn parser() {
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
         Command::CalculateW0 { args } => calculate_w0_command(args),
         Command::ExtractTC { args } => extract_tc_command(args),
-        // Command::Histogram { args } => histogram_command(args),
         Command::Median { args } => median_command(args),
         Command::Plaquette { args } => plaquette_command(args),
         Command::ComputePCACMass { args } => compute_effective_pcac_mass_command(args),
