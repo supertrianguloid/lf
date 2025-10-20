@@ -102,7 +102,7 @@ pub struct BinBootstrapArgs {
     pub binwidth: usize,
     #[arg(long, value_name = "DOUBLE_BOOTSTRAP_SAMPLES")]
     pub n_boot_double: Option<u32>,
-    #[arg(long, value_name = "HISTOGRAM_BINS")]
+    #[arg(long, value_name = "HISTOGRAM_BINS", default_value_t = 1000)]
     pub n_bins_histogram: usize,
 }
 
