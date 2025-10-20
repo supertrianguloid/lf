@@ -1,8 +1,8 @@
 use crate::bootstrap::{bootstrap, get_samples, BootstrapResult};
 use crate::io::load_plaquette_from_file;
-use crate::observables::{Measurement, ObservableCalculation};
+use crate::observables::{Measurement, Observable, ObservableCalculation};
 use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac};
-use crate::statistics::{bin, mean, standard_deviation, weighted_mean};
+use crate::statistics::{bin, mean, median, standard_deviation, weighted_mean};
 use crate::wilsonflow::{calculate_w0_from_samples, extract_tc, WilsonFlowCalculation};
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::generate;
@@ -63,6 +63,10 @@ enum Command {
     ComputePCACMassFit {
         #[clap(flatten)]
         args: ComputePCACMassFitArgs,
+    },
+    Median {
+        #[clap(flatten)]
+        args: MedianArgs,
     },
     GenerateCompletions {},
 }
@@ -189,6 +193,12 @@ struct ComputePCACMassArgs {
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
 }
+#[derive(Parser, Debug)]
+struct MedianArgs {
+    json_filename: String,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
+}
 
 #[derive(Parser, Debug)]
 struct ComputePCACMassFitArgs {
@@ -221,6 +231,10 @@ struct EffectiveMass {
     error: Vec<f64>,
     #[serde(rename = "Failed Samples (%)")]
     failures: Vec<f64>,
+}
+#[derive(Deserialize)]
+struct Data {
+    data: Vec<f64>,
 }
 
 fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
@@ -446,24 +460,20 @@ fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
     results.print()
 }
 
-// fn histogram_command(args: HistogramArgs) {
-//     if let BootstrapResult::SingleBootstrap {
-//         n_boot: _,
-//         replicas: mut sample,
-//         central_val: _,
-//         z: _,
-//         a: _,
-//         ci_68: _,
-//         ci_95: _,
-//         ci_99: _,
-//         failed_samples: _,
-//     } = serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
-//     {
-//         sample.par_sort_unstable_by(f64::total_cmp);
-//         let hist = bin(&sample, args.nbins);
-//         println!("{}", serde_json::to_string(&hist).unwrap());
-//     }
-// }
+fn median_command(args: MedianArgs) {
+    if let Data { data: mut data } =
+        serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
+    {
+        let func = |samples: Vec<usize>| {
+            let mut smp = vec![];
+            for sample in samples {
+                smp.push(data[sample]);
+            }
+            return Some(median(&smp));
+        };
+        bootstrap(func, data.len(), &args.boot).print()
+    }
+}
 
 fn plaquette_command(args: PlaquetteArgs) {
     let plaq = load_plaquette_from_file(&args.filename);
@@ -480,6 +490,7 @@ pub fn parser() {
         Command::CalculateW0 { args } => calculate_w0_command(args),
         Command::ExtractTC { args } => extract_tc_command(args),
         // Command::Histogram { args } => histogram_command(args),
+        Command::Median { args } => median_command(args),
         Command::Plaquette { args } => plaquette_command(args),
         Command::ComputePCACMass { args } => compute_effective_pcac_mass_command(args),
         Command::ComputePCACMassFit { args } => bootstrap_pcac_fit_command(args),

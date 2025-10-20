@@ -15,6 +15,15 @@ pub struct Histogram {
 pub fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
 }
+pub fn median(values: &[f64]) -> f64 {
+    let mut values = values.to_vec();
+    values.par_sort_unstable_by(f64::total_cmp);
+    if values.len() % 2 == 1 {
+        return values[values.len() / 2];
+    } else {
+        return (values[(values.len() / 2) - 1] + values[values.len() / 2]) / 2.0;
+    }
+}
 pub fn standard_deviation(values: &[f64], corrected: bool) -> f64 {
     let mean = mean(values);
     (values.par_iter().map(|x| (x - mean).powi(2)).sum::<f64>()
@@ -185,6 +194,13 @@ mod tests {
         let err = vec![0.3, 0.2];
         let w_mean = (1.6923076923076923, 0.16641005886756874);
         assert_eq!(weighted_mean(&sample, &err), w_mean);
+    }
+    #[test]
+    fn median_tests() {
+        let sample = vec![1.0, 2.0, 3.0];
+        assert_eq!(median(&sample), 2.0);
+        let sample = vec![1.0, 2.0, 3.0, 4.0];
+        assert_eq!(median(&sample), 2.5);
     }
     #[test]
     fn histogram_test() {

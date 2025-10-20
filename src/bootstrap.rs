@@ -1,5 +1,5 @@
 use crate::parser::BinBootstrapArgs;
-use crate::statistics::{bin, Histogram};
+use crate::statistics::{bin, mean, Histogram};
 use rand::distr::{Distribution, Uniform};
 use rand::Rng;
 use rayon::prelude::*;
@@ -139,7 +139,7 @@ where
             ci_99: confidence_interval(&replicas, z, a, 1.0 - 0.997300203936740),
             n_boot: boot_args.n_boot,
             median: replicas[replicas.len() / 2],
-            mean: replicas.iter().sum::<f64>() / (replicas.len() as f64),
+            mean: mean(&replicas),
             histogram: bin(&replicas, boot_args.n_bins_histogram),
             failed_samples: boot_args.n_boot - replicas.len(),
             replicas: replicas,
