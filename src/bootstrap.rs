@@ -22,6 +22,7 @@ pub enum BootstrapResult {
         ci_99: (f64, f64),
         failed_samples: usize,
         histogram: Histogram,
+        square_error: f64,
     },
     DoubleBootstrap(Vec<Vec<f64>>),
 }
@@ -45,6 +46,7 @@ impl BootstrapResult {
                 stddev: _,
                 histogram: _,
                 failed_samples: _,
+                square_error: _,
             } => v,
             BootstrapResult::DoubleBootstrap(_) => unimplemented!(),
         }
@@ -134,6 +136,8 @@ where
 
         // let a = num / (6.0 * denom.powf(3.0 / 2.0));
         let a = 0.0;
+        let mean = mean(&replicas);
+        let stddev = standard_deviation(&replicas, true);
 
         BootstrapResult::SingleBootstrap {
             ci_68: confidence_interval(&replicas, z, a, 1.0 - 0.682689492137086),
@@ -141,14 +145,15 @@ where
             ci_99: confidence_interval(&replicas, z, a, 1.0 - 0.997300203936740),
             n_boot: boot_args.n_boot,
             median: replicas[replicas.len() / 2],
-            mean: mean(&replicas),
-            stddev: standard_deviation(&replicas, true),
+            mean: mean,
+            stddev: stddev,
             histogram: bin(&replicas, boot_args.n_bins_histogram),
             failed_samples: boot_args.n_boot - replicas.len(),
             replicas: replicas,
             central_val: central_val,
             z: z,
             a: a,
+            square_error: 2.0 * mean * stddev,
         }
     }
 }
