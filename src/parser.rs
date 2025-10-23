@@ -1,7 +1,7 @@
 use crate::bootstrap::{bootstrap, get_samples, BootstrapResult};
 use crate::io::load_plaquette_from_file;
 use crate::observables::{Measurement, Observable, ObservableCalculation};
-use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac};
+use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac, fit_cosh};
 use crate::statistics::{bin, mean, median, standard_deviation, weighted_mean};
 use crate::wilsonflow::{calculate_w0_from_samples, extract_tc, WilsonFlowCalculation};
 use clap::{CommandFactory, Parser, Subcommand};
@@ -38,6 +38,10 @@ enum Command {
     BootstrapFits {
         #[clap(flatten)]
         args: BootstrapFitsArgs,
+    },
+    BootstrapCorrelatorFits {
+        #[clap(flatten)]
+        args: BootstrapCorrelatorFitsArgs,
     },
     BootstrapFitsRatio {
         #[clap(flatten)]
@@ -160,6 +164,22 @@ struct BootstrapFitsArgs {
     effective_mass_t_max: usize,
     #[clap(flatten)]
     wf: Option<WFArgs>,
+}
+
+#[derive(Parser, Debug)]
+struct BootstrapCorrelatorFitsArgs {
+    #[clap(flatten)]
+    hmc: HMCArgs,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
+    #[arg(short, long, value_name = "CHANNEL")]
+    channel: String,
+    #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
+    solver_precision: f64,
+    #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
+    effective_mass_t_min: usize,
+    #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
+    effective_mass_t_max: usize,
 }
 
 #[derive(Parser, Debug)]
@@ -290,7 +310,20 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
         .unwrap()
     )
 }
-
+fn bootstrap_correlator_fits_command(args: BootstrapCorrelatorFitsArgs) {
+    let channel = ObservableCalculation::load(&args.hmc, args.channel);
+    let func = |samples: Vec<usize>| {
+        let corr = &channel.obs.get_subsample_mean_stderr_from_samples(&samples);
+        let masses = fit_cosh(
+            corr,
+            channel.global_t,
+            args.effective_mass_t_min,
+            args.effective_mass_t_max,
+        );
+        Some(masses.mass)
+    };
+    bootstrap(func, channel.obs.nconfs, &args.boot).print();
+}
 fn bootstrap_fits_command(args: BootstrapFitsArgs) {
     let channel = ObservableCalculation::load(&args.hmc, args.channel);
 
@@ -489,6 +522,7 @@ pub fn parser() {
         Command::ComputeEffectiveMass { args } => compute_effective_mass_command(args),
         Command::FitEffectiveMass { args } => fit_effective_mass_command(args),
         Command::BootstrapFits { args } => bootstrap_fits_command(args),
+        Command::BootstrapCorrelatorFits { args } => bootstrap_correlator_fits_command(args),
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
         Command::CalculateW0 { args } => calculate_w0_command(args),
         Command::ExtractTC { args } => extract_tc_command(args),

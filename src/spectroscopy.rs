@@ -7,12 +7,12 @@ use varpro::problem::*;
 use varpro::solvers::levmar::LevMarSolver;
 
 #[derive(Debug)]
-struct CoshFit {
-    coefficient: f64,
-    mass: f64,
+pub struct CoshFit {
+    pub coefficient: f64,
+    pub mass: f64,
 }
 
-fn fit_cosh(corr: Measurement, global_t: usize, lower: usize, upper: usize) -> CoshFit {
+pub fn fit_cosh(corr: &Measurement, global_t: usize, lower: usize, upper: usize) -> CoshFit {
     // build the model
     fn generate_models(
         global_t: usize,
@@ -34,7 +34,7 @@ fn fit_cosh(corr: Measurement, global_t: usize, lower: usize, upper: usize) -> C
     let y = DVector::from_vec(corr.values[lower..upper].to_vec());
     let w = DVector::from_vec(
         corr.errors
-            .into_iter()
+            .iter()
             .map(|val| 1.0 / val.powi(2))
             .collect::<Vec<f64>>()[lower..upper]
             .to_vec(),
@@ -199,7 +199,7 @@ mod tests {
                 0.02813898993584893,
             ],
         };
-        let fit = fit_cosh(g5, 10, 0, 5);
+        let fit = fit_cosh(&g5, 10, 0, 5);
         assert!(fit.coefficient - 1.0 < f64::EPSILON);
         assert!(fit.mass - 1.0 < f64::EPSILON);
     }
