@@ -43,6 +43,10 @@ enum Command {
         #[clap(flatten)]
         args: BootstrapCorrelatorFitsArgs,
     },
+    BootstrapFps {
+        #[clap(flatten)]
+        args: BootstrapFpsArgs,
+    },
     BootstrapFitsRatio {
         #[clap(flatten)]
         args: BootstrapFitsRatioArgs,
@@ -235,6 +239,23 @@ struct ComputePCACMassFitArgs {
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
 }
+#[derive(Parser, Debug)]
+struct BootstrapFpsArgs {
+    #[clap(flatten)]
+    hmc: HMCArgs,
+    #[clap(flatten)]
+    boot: BinBootstrapArgs,
+    #[arg(long, value_name = "PCAC_EFFECTIVE_MASS_T_MIN")]
+    pcac_effective_mass_t_min: usize,
+    #[arg(long, value_name = "PCAC_EFFECTIVE_MASS_T_MAX")]
+    pcac_effective_mass_t_max: usize,
+    #[arg(long, value_name = "PS_EFFECTIVE_MASS_T_MIN")]
+    ps_effective_mass_t_min: usize,
+    #[arg(long, value_name = "PS_EFFECTIVE_MASS_T_MAX")]
+    ps_effective_mass_t_max: usize,
+    #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
+    solver_precision: f64,
+}
 
 #[derive(Parser, Debug)]
 struct BootstrapErrorArgs {
@@ -314,15 +335,57 @@ fn bootstrap_correlator_fits_command(args: BootstrapCorrelatorFitsArgs) {
     let channel = ObservableCalculation::load(&args.hmc, args.channel);
     let func = |samples: Vec<usize>| {
         let corr = &channel.obs.get_subsample_mean_stderr_from_samples(&samples);
-        let masses = fit_cosh(
+        let fit = fit_cosh(
             corr,
             channel.global_t,
             args.effective_mass_t_min,
             args.effective_mass_t_max,
         );
-        Some(masses.mass)
+        Some(fit.mass)
     };
     bootstrap(func, channel.obs.nconfs, &args.boot).print();
+}
+
+fn bootstrap_fps_command(args: BootstrapFpsArgs) {
+    let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
+    let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
+    let func = |samples: Vec<usize>| {
+        let corr = &f_ps.obs.get_subsample_mean_stderr_from_samples(&samples);
+        let fit = fit_cosh(
+            corr,
+            f_ps.global_t,
+            args.ps_effective_mass_t_min,
+            args.ps_effective_mass_t_max,
+        );
+        let mut mass = vec![];
+        for t in args.pcac_effective_mass_t_min..=args.pcac_effective_mass_t_max {
+            let m_ps_eff = effective_mass_all_t(
+                &f_ps
+                    .obs
+                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .values,
+                f_ps.global_t,
+                1,
+                f_ap.global_t / 2,
+                args.solver_precision,
+            )?;
+
+            mass.push(effective_pcac(
+                &f_ap
+                    .obs
+                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .values,
+                &f_ps
+                    .obs
+                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .values,
+                &m_ps_eff,
+                t,
+            ));
+        }
+        Some((2.0 * mean(&mass) * (fit.coefficient * fit.mass).sqrt()) / (fit.mass * fit.mass))
+    };
+    bootstrap(func, f_ps.obs.nconfs, &args.boot).print();
 }
 fn bootstrap_fits_command(args: BootstrapFitsArgs) {
     let channel = ObservableCalculation::load(&args.hmc, args.channel);
@@ -522,6 +585,7 @@ pub fn parser() {
         Command::ComputeEffectiveMass { args } => compute_effective_mass_command(args),
         Command::FitEffectiveMass { args } => fit_effective_mass_command(args),
         Command::BootstrapFits { args } => bootstrap_fits_command(args),
+        Command::BootstrapFps { args } => bootstrap_fps_command(args),
         Command::BootstrapCorrelatorFits { args } => bootstrap_correlator_fits_command(args),
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
         Command::CalculateW0 { args } => calculate_w0_command(args),
