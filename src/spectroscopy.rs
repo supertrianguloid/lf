@@ -60,9 +60,7 @@ pub fn fit_cosh(
         .build()
         .unwrap();
 
-    let fit_result = LevMarSolver::default()
-        .fit_with_statistics(problem)
-        .expect("fit must succeed");
+    let fit_result = LevMarSolver::default().fit_with_statistics(problem).ok()?;
     let mass = fit_result.0.nonlinear_parameters();
     let coeff = fit_result.0.linear_coefficients().unwrap();
     if !(fit_result.1.reduced_chi2() < 100.0) {
