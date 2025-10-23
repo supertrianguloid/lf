@@ -366,7 +366,7 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
             corr,
             f_ps.global_t,
             args.ps_effective_mass_t_min,
-            args.ps_effective_mass_t_max,
+            args.ps_effective_mass_t_max + 1,
         )?;
         let mut mass = vec![];
         for t in args.pcac_effective_mass_t_min..=args.pcac_effective_mass_t_max {
