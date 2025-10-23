@@ -62,7 +62,7 @@ pub fn fit_cosh(corr: &Measurement, global_t: usize, lower: usize, upper: usize)
     let coeff = fit_result.linear_coefficients().unwrap();
     return CoshFit {
         coefficient: coeff[0],
-        mass: mass[0],
+        mass: mass[0].abs(),
     };
 }
 
