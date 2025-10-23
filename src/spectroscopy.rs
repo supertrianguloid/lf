@@ -12,7 +12,12 @@ pub struct CoshFit {
     pub mass: f64,
 }
 
-pub fn fit_cosh(corr: &Measurement, global_t: usize, lower: usize, upper: usize) -> CoshFit {
+pub fn fit_cosh(
+    corr: &Measurement,
+    global_t: usize,
+    lower: usize,
+    upper: usize,
+) -> Option<CoshFit> {
     // build the model
     fn generate_models(
         global_t: usize,
@@ -60,10 +65,13 @@ pub fn fit_cosh(corr: &Measurement, global_t: usize, lower: usize, upper: usize)
         .expect("fit must succeed");
     let mass = fit_result.nonlinear_parameters();
     let coeff = fit_result.linear_coefficients().unwrap();
-    return CoshFit {
+    if !fit_result.minimization_report.termination.was_successful() {
+        return None;
+    }
+    return Some(CoshFit {
         coefficient: coeff[0],
         mass: mass[0].abs(),
-    };
+    });
 }
 
 fn find_range<F>(lower: f64, higher: f64, f: F) -> Option<(f64, f64)>

@@ -340,7 +340,7 @@ fn bootstrap_correlator_fits_command(args: BootstrapCorrelatorFitsArgs) {
             channel.global_t,
             args.effective_mass_t_min,
             args.effective_mass_t_max,
-        );
+        )?;
         Some(fit.mass)
     };
     bootstrap(func, channel.obs.nconfs, &args.boot).print();
@@ -356,7 +356,7 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
             f_ps.global_t,
             args.ps_effective_mass_t_min,
             args.ps_effective_mass_t_max,
-        );
+        )?;
         let mut mass = vec![];
         for t in args.pcac_effective_mass_t_min..=args.pcac_effective_mass_t_max {
             let m_ps_eff = effective_mass_all_t(
