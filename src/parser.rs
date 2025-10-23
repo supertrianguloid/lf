@@ -39,6 +39,10 @@ enum Command {
         #[clap(flatten)]
         args: BootstrapFitsArgs,
     },
+    GetCorrelator {
+        #[clap(flatten)]
+        args: GetCorrelatorArgs,
+    },
     BootstrapCorrelatorFits {
         #[clap(flatten)]
         args: BootstrapCorrelatorFitsArgs,
@@ -128,6 +132,13 @@ struct ComputeEffectiveMassArgs {
     effective_mass_t_min: usize,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
     effective_mass_t_max: usize,
+}
+#[derive(Parser, Debug)]
+struct GetCorrelatorArgs {
+    #[clap(flatten)]
+    hmc: HMCArgs,
+    #[arg(short, long, value_name = "CHANNEL")]
+    channel: String,
 }
 
 #[derive(Parser, Debug)]
@@ -557,6 +568,13 @@ fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
 
     results.print()
 }
+fn get_correlator_command(args: GetCorrelatorArgs) {
+    let corr = ObservableCalculation::load(&args.hmc, args.channel);
+    println!(
+        "{}",
+        serde_json::to_string(&corr.obs.get_mean_stderr()).unwrap()
+    );
+}
 
 fn median_command(args: MedianArgs) {
     if let Data { data: mut data } =
@@ -584,6 +602,7 @@ pub fn parser() {
     match app.command {
         Command::ComputeEffectiveMass { args } => compute_effective_mass_command(args),
         Command::FitEffectiveMass { args } => fit_effective_mass_command(args),
+        Command::GetCorrelator { args } => get_correlator_command(args),
         Command::BootstrapFits { args } => bootstrap_fits_command(args),
         Command::BootstrapFps { args } => bootstrap_fps_command(args),
         Command::BootstrapCorrelatorFits { args } => bootstrap_correlator_fits_command(args),

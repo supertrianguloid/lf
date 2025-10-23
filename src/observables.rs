@@ -1,9 +1,11 @@
+use serde::Serialize;
+
 use crate::bootstrap::get_samples;
 use crate::io::{load_channel_from_file_folded, load_global_t_from_file};
 use crate::parser::HMCArgs;
 use crate::statistics::{mean, standard_error};
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize)]
 pub struct Measurement {
     pub values: Vec<f64>,
     pub errors: Vec<f64>,
