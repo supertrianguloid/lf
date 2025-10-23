@@ -61,11 +61,11 @@ pub fn fit_cosh(
         .unwrap();
 
     let fit_result = LevMarSolver::default()
-        .fit(problem)
+        .fit_with_statistics(problem)
         .expect("fit must succeed");
-    let mass = fit_result.nonlinear_parameters();
-    let coeff = fit_result.linear_coefficients().unwrap();
-    if !fit_result.minimization_report.termination.was_successful() {
+    let mass = fit_result.0.nonlinear_parameters();
+    let coeff = fit_result.0.linear_coefficients().unwrap();
+    if !(fit_result.1.reduced_chi2() < 100.0) {
         return None;
     }
     return Some(CoshFit {
@@ -207,7 +207,7 @@ mod tests {
                 0.02813898993584893,
             ],
         };
-        let fit = fit_cosh(&g5, 10, 0, 5);
+        let fit = fit_cosh(&g5, 10, 0, 5).unwrap();
         assert!(fit.coefficient - 1.0 < f64::EPSILON);
         assert!(fit.mass - 1.0 < f64::EPSILON);
     }
