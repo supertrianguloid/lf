@@ -297,7 +297,9 @@ fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
     } = serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap();
     let offset = tau.iter().position(|&x| x == args.t1).unwrap();
     let index = offset..(offset + args.t2 - args.t1 + 1);
-    let fit = weighted_mean(&mass[index.clone()], &error[index]);
+    let weights: Vec<f64> = (0..error.len()).map(|n| 1.0 / error[n].powf(2.0)).collect();
+
+    let fit = weighted_mean(&mass[index.clone()], &weights);
     println!("{}", serde_json::to_string(&fit).unwrap());
 }
 

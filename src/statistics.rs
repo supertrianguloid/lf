@@ -1,7 +1,7 @@
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize)]
 pub struct SingleMeasurement {
     value: f64,
     error: f64,
@@ -75,7 +75,7 @@ pub fn centred_difference_derivative(input: &[f64], dx: f64) -> Vec<f64> {
 
 /// Computes the mean of a set of observables weighted by their errors.
 /// [Definition](https://en.wikipedia.org/wiki/Weighted_arithmetic_mean#Mathematical_definition)
-pub fn weighted_mean(sample: &[f64], errors: &[f64]) -> (f64, f64) {
+pub fn weighted_mean(sample: &[f64], errors: &[f64]) -> SingleMeasurement {
     let weights: Vec<f64> = (0..sample.len())
         .map(|n| 1.0 / errors[n].powf(2.0))
         .collect();
