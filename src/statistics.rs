@@ -85,10 +85,10 @@ pub fn weighted_mean(sample: &[f64], errors: &[f64]) -> SingleMeasurement {
         sum_weight_times_sample += weights[i] * sample[i];
         sum_weights += weights[i];
     }
-    (
-        sum_weight_times_sample / sum_weights,
-        (1.0 / sum_weights).sqrt(),
-    )
+    SingleMeasurement {
+        value: sum_weight_times_sample / sum_weights,
+        error: (1.0 / sum_weights).sqrt(),
+    }
 }
 
 pub fn bin(data: &[f64], nbins: usize) -> Histogram {
@@ -193,7 +193,13 @@ mod tests {
         let sample = vec![1.0, 2.0];
         let err = vec![0.3, 0.2];
         let w_mean = (1.6923076923076923, 0.16641005886756874);
-        assert_eq!(weighted_mean(&sample, &err), w_mean);
+        assert_eq!(
+            weighted_mean(&sample, &err),
+            SingleMeasurement {
+                value: 4.0,
+                error: 4.0
+            }
+        );
     }
     #[test]
     fn median_tests() {
