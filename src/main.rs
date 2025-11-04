@@ -5,8 +5,8 @@ mod parser;
 mod spectroscopy;
 mod statistics;
 mod wilsonflow;
-use parser::parser;
+use parser::run;
 
 fn main() {
-    parser();
+    run();
 }

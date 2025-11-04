@@ -1,9 +1,9 @@
-use crate::bootstrap::{bootstrap, get_samples, BootstrapResult};
+use crate::bootstrap::{bayesian_bootstrap, get_uniform_weights};
 use crate::io::load_plaquette_from_file;
-use crate::observables::{Measurement, Observable, ObservableCalculation};
+use crate::observables::{Measurement, ObservableCalculation};
 use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac, fit_cosh};
-use crate::statistics::{bin, mean, median, standard_deviation, weighted_mean};
-use crate::wilsonflow::{calculate_w0_from_samples, extract_tc, WilsonFlowCalculation};
+use crate::statistics::{mean, standard_deviation, weighted_mean, weighted_median};
+use crate::wilsonflow::{WilsonFlowCalculation, calculate_w0_from_weights, extract_tc};
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::generate;
 use clap_complete_nushell::Nushell;
@@ -106,14 +106,30 @@ pub struct WFArgs {
     pub w_ref: f64,
 }
 
+// #[derive(Parser, Debug)]
+// pub struct BinBootstrapArgs {
+//     #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
+//     pub n_boot: usize,
+//     #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
+//     pub binwidth: usize,
+//     #[arg(long, value_name = "DOUBLE_BOOTSTRAP_SAMPLES")]
+//     pub n_boot_double: Option<u32>,
+//     #[arg(long, value_name = "HISTOGRAM_BINS", default_value_t = 1000)]
+//     pub n_bins_histogram: usize,
+// }
 #[derive(Parser, Debug)]
-pub struct BinBootstrapArgs {
-    #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
-    pub n_boot: usize,
+pub struct BinArgs {
     #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
     pub binwidth: usize,
+}
+#[derive(Parser, Debug)]
+pub struct BootstrapArgs {
+    #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
+    pub n_boot: usize,
     #[arg(long, value_name = "DOUBLE_BOOTSTRAP_SAMPLES")]
     pub n_boot_double: Option<u32>,
+    #[arg(long, value_name = "DIRICHLET_ALPHA", default_value_t = 1.0)]
+    pub dirichlet_alpha: f64,
     #[arg(long, value_name = "HISTOGRAM_BINS", default_value_t = 1000)]
     pub n_bins_histogram: usize,
 }
@@ -123,7 +139,9 @@ struct ComputeEffectiveMassArgs {
     #[clap(flatten)]
     hmc: HMCArgs,
     #[clap(flatten)]
-    boot: BinBootstrapArgs,
+    boot: BootstrapArgs,
+    #[clap(flatten)]
+    bin: BinArgs,
     #[arg(short, long, value_name = "CHANNEL")]
     channel: String,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
@@ -139,6 +157,8 @@ struct GetCorrelatorArgs {
     hmc: HMCArgs,
     #[arg(short, long, value_name = "CHANNEL")]
     channel: String,
+    #[clap(flatten)]
+    bin: BinArgs,
 }
 
 #[derive(Parser, Debug)]
@@ -151,7 +171,9 @@ struct FitEffectiveMassArgs {
 #[derive(Parser, Debug)]
 struct CalculateW0Args {
     #[clap(flatten)]
-    boot: BinBootstrapArgs,
+    boot: BootstrapArgs,
+    #[clap(flatten)]
+    bin: BinArgs,
     #[clap(flatten)]
     wf: WFArgs,
 }
@@ -168,7 +190,9 @@ struct BootstrapFitsArgs {
     #[clap(flatten)]
     hmc: HMCArgs,
     #[clap(flatten)]
-    boot: BinBootstrapArgs,
+    boot: BootstrapArgs,
+    #[clap(flatten)]
+    bin: BinArgs,
     #[arg(short, long, value_name = "CHANNEL")]
     channel: String,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
@@ -186,7 +210,9 @@ struct BootstrapCorrelatorFitsArgs {
     #[clap(flatten)]
     hmc: HMCArgs,
     #[clap(flatten)]
-    boot: BinBootstrapArgs,
+    boot: BootstrapArgs,
+    #[clap(flatten)]
+    bin: BinArgs,
     #[arg(short, long, value_name = "CHANNEL")]
     channel: String,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
@@ -202,7 +228,9 @@ struct BootstrapFitsRatioArgs {
     #[clap(flatten)]
     hmc: HMCArgs,
     #[clap(flatten)]
-    boot: BinBootstrapArgs,
+    boot: BootstrapArgs,
+    #[clap(flatten)]
+    bin: BinArgs,
     #[arg(long, value_name = "NUMERATOR_CHANNEL")]
     numerator_channel: String,
     #[arg(long, value_name = "DENOMINATOR_CHANNEL")]
@@ -224,7 +252,9 @@ struct ComputePCACMassArgs {
     #[clap(flatten)]
     hmc: HMCArgs,
     #[clap(flatten)]
-    boot: BinBootstrapArgs,
+    boot: BootstrapArgs,
+    #[clap(flatten)]
+    bin: BinArgs,
     #[arg(short, long, value_name = "SOLVER_PRECISION", default_value_t = 1e-15)]
     solver_precision: f64,
 }
@@ -232,7 +262,7 @@ struct ComputePCACMassArgs {
 struct MedianArgs {
     json_filename: String,
     #[clap(flatten)]
-    boot: BinBootstrapArgs,
+    boot: BootstrapArgs,
     #[arg(short, long, value_name = "THERMALISATION", default_value_t = 0)]
     thermalisation: usize,
 }
@@ -242,7 +272,9 @@ struct ComputePCACMassFitArgs {
     #[clap(flatten)]
     hmc: HMCArgs,
     #[clap(flatten)]
-    boot: BinBootstrapArgs,
+    boot: BootstrapArgs,
+    #[clap(flatten)]
+    bin: BinArgs,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MIN")]
     effective_mass_t_min: usize,
     #[arg(long, value_name = "EFFECTIVE_MASS_T_MAX")]
@@ -255,7 +287,9 @@ struct BootstrapFpsArgs {
     #[clap(flatten)]
     hmc: HMCArgs,
     #[clap(flatten)]
-    boot: BinBootstrapArgs,
+    boot: BootstrapArgs,
+    #[clap(flatten)]
+    bin: BinArgs,
     #[arg(long, value_name = "PCAC_EFFECTIVE_MASS_T_MIN")]
     pcac_effective_mass_t_min: usize,
     #[arg(long, value_name = "PCAC_EFFECTIVE_MASS_T_MAX")]
@@ -268,12 +302,12 @@ struct BootstrapFpsArgs {
     solver_precision: f64,
 }
 
-#[derive(Parser, Debug)]
-struct BootstrapErrorArgs {
-    json_filename: String,
-    #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
-    n_boot: u32,
-}
+// #[derive(Parser, Debug)]
+// struct BootstrapErrorArgs {
+//     json_filename: String,
+//     #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
+//     n_boot: u32,
+// }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct EffectiveMass {
@@ -304,7 +338,7 @@ fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
 }
 
 fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
-    let channel = ObservableCalculation::load(&args.hmc, args.channel);
+    let channel = ObservableCalculation::load(&args.hmc, args.channel, &args.bin);
 
     let mut solve_failures = vec![];
     let mut effmass_mean = vec![];
@@ -317,7 +351,7 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
                 let Measurement {
                     values: mu,
                     errors: _,
-                } = channel.obs.get_subsample_mean_stderr(args.boot.binwidth);
+                } = channel.obs.get_mean_stderr();
                 effective_mass(&mu, channel.global_t, tau, args.solver_precision)
             })
             .collect();
@@ -345,9 +379,9 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
     )
 }
 fn bootstrap_correlator_fits_command(args: BootstrapCorrelatorFitsArgs) {
-    let channel = ObservableCalculation::load(&args.hmc, args.channel);
-    let func = |samples: Vec<usize>| {
-        let corr = &channel.obs.get_subsample_mean_stderr_from_samples(&samples);
+    let channel = ObservableCalculation::load(&args.hmc, args.channel, &args.bin);
+    let func = |weights: Vec<f64>| {
+        let corr = &channel.obs.get_subsample_mean_stderr_from_weights(&weights);
         let fit = fit_cosh(
             corr,
             channel.global_t,
@@ -356,14 +390,18 @@ fn bootstrap_correlator_fits_command(args: BootstrapCorrelatorFitsArgs) {
         )?;
         Some(fit.mass)
     };
-    bootstrap(func, channel.obs.nconfs, &args.boot).print();
+    dbg!(channel.obs.nconfs);
+    println!(
+        "{}",
+        serde_json::to_string(&bayesian_bootstrap(func, channel.obs.nconfs, &args.boot)).unwrap()
+    );
 }
 
 fn bootstrap_fps_command(args: BootstrapFpsArgs) {
-    let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
-    let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
-    let func = |samples: Vec<usize>| {
-        let corr = &f_ps.obs.get_subsample_mean_stderr_from_samples(&samples);
+    let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"), &args.bin);
+    let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"), &args.bin);
+    let func = |weights: Vec<f64>| {
+        let corr = &f_ps.obs.get_subsample_mean_stderr_from_weights(&weights);
         let fit = fit_cosh(
             corr,
             f_ps.global_t,
@@ -375,7 +413,7 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
             let m_ps_eff = effective_mass_all_t(
                 &f_ps
                     .obs
-                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .get_subsample_mean_stderr_from_weights(&weights)
                     .values,
                 f_ps.global_t,
                 1,
@@ -386,11 +424,11 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
             mass.push(effective_pcac(
                 &f_ap
                     .obs
-                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .get_subsample_mean_stderr_from_weights(&weights)
                     .values,
                 &f_ps
                     .obs
-                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .get_subsample_mean_stderr_from_weights(&weights)
                     .values,
                 &m_ps_eff,
                 t,
@@ -398,10 +436,13 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
         }
         Some((2.0 * mean(&mass) * (fit.coefficient * fit.mass).sqrt()) / (fit.mass * fit.mass))
     };
-    bootstrap(func, f_ps.obs.nconfs, &args.boot).print();
+    println!(
+        "{}",
+        serde_json::to_string(&bayesian_bootstrap(func, f_ps.obs.nconfs, &args.boot)).unwrap()
+    );
 }
 fn bootstrap_fits_command(args: BootstrapFitsArgs) {
-    let channel = ObservableCalculation::load(&args.hmc, args.channel);
+    let channel = ObservableCalculation::load(&args.hmc, args.channel, &args.bin);
 
     let wf = if let Some(wfargs) = args.wf {
         let w = Some(WilsonFlowCalculation::load(wfargs));
@@ -410,10 +451,10 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
     } else {
         None
     };
-    let func = |samples: Vec<usize>| {
+    let func = |weights: Vec<f64>| {
         let mu = &channel
             .obs
-            .get_subsample_mean_stderr_from_samples(&samples)
+            .get_subsample_mean_stderr_from_weights(&weights)
             .values;
         let masses = effective_mass_all_t(
             mu,
@@ -424,20 +465,24 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
         )?;
         let factor = match &wf {
             None => 1.0,
-            Some(wf) => calculate_w0_from_samples(&wf.data, &samples, wf.w_ref)?,
+            Some(wf) => calculate_w0_from_weights(&wf.data, &weights, wf.w_ref)?,
         };
         Some(mean(&masses) * factor)
     };
-    let results = bootstrap(func, channel.obs.nconfs, &args.boot);
-    results.print();
+    println!(
+        "{}",
+        serde_json::to_string(&bayesian_bootstrap(func, channel.obs.nconfs, &args.boot)).unwrap()
+    );
 }
 fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
-    let numerator_channel = ObservableCalculation::load(&args.hmc, args.numerator_channel);
-    let denominator_channel = ObservableCalculation::load(&args.hmc, args.denominator_channel);
-    let func = |samples: Vec<usize>| {
+    let numerator_channel =
+        ObservableCalculation::load(&args.hmc, args.numerator_channel, &args.bin);
+    let denominator_channel =
+        ObservableCalculation::load(&args.hmc, args.denominator_channel, &args.bin);
+    let func = |weights: Vec<f64>| {
         let num_mu = numerator_channel
             .obs
-            .get_subsample_mean_stderr_from_samples(&samples)
+            .get_subsample_mean_stderr_from_weights(&weights)
             .values;
         let num_masses = effective_mass_all_t(
             &num_mu,
@@ -449,7 +494,7 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
 
         let denom_mu = denominator_channel
             .obs
-            .get_subsample_mean_stderr_from_samples(&samples)
+            .get_subsample_mean_stderr_from_weights(&weights)
             .values;
         let denom_masses = effective_mass_all_t(
             &denom_mu,
@@ -461,15 +506,28 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
 
         Some(mean(&num_masses) / mean(&denom_masses))
     };
-    let results = bootstrap(func, numerator_channel.obs.nconfs, &args.boot);
-
-    results.print();
+    println!(
+        "{}",
+        serde_json::to_string(&bayesian_bootstrap(
+            func,
+            numerator_channel.obs.nconfs,
+            &args.boot
+        ))
+        .unwrap()
+    );
 }
 fn calculate_w0_command(args: CalculateW0Args) {
     let wf = WilsonFlowCalculation::load(args.wf);
-    let func = |samples: Vec<usize>| calculate_w0_from_samples(&wf.data, &samples, wf.w_ref);
-    let results = bootstrap(func, wf.data.t2_esym.nconfs, &args.boot);
-    results.print();
+    let func = |weights: Vec<f64>| calculate_w0_from_weights(&wf.data, &weights, wf.w_ref);
+    println!(
+        "{}",
+        serde_json::to_string(&bayesian_bootstrap(
+            func,
+            wf.data.t2_esym.nconfs,
+            &args.boot
+        ))
+        .unwrap()
+    );
 }
 
 fn extract_tc_command(args: ExtractTCArgs) {
@@ -480,27 +538,27 @@ fn extract_tc_command(args: ExtractTCArgs) {
     )
 }
 fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
-    let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
-    let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
+    let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"), &args.bin);
+    let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"), &args.bin);
 
     let mut central_val = vec![];
     let mut errors = vec![];
 
     for t in 0..(f_ap.obs.each_len - 2) {
-        let func = |samples: Vec<usize>| {
+        let func = |weights: Vec<f64>| {
             Some(effective_pcac(
                 &f_ap
                     .obs
-                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .get_subsample_mean_stderr_from_weights(&weights)
                     .values,
                 &f_ps
                     .obs
-                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .get_subsample_mean_stderr_from_weights(&weights)
                     .values,
                 &effective_mass_all_t(
                     &f_ps
                         .obs
-                        .get_subsample_mean_stderr_from_samples(&samples)
+                        .get_subsample_mean_stderr_from_weights(&weights)
                         .values,
                     f_ps.global_t,
                     1,
@@ -510,11 +568,8 @@ fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
                 t,
             ))
         };
-        central_val.push(func(get_samples(f_ap.obs.nconfs, args.boot.binwidth)).unwrap());
-        errors.push(standard_deviation(
-            &bootstrap(func, f_ap.obs.nconfs, &args.boot).get_single_bootstrap_result(),
-            true,
-        ));
+        central_val.push(func(get_uniform_weights(f_ap.obs.nconfs)).unwrap());
+        errors.push(bayesian_bootstrap(func, f_ap.obs.nconfs, &args.boot).error());
     }
 
     // let func = |samples: Vec<usize>| calculate_w0_from_samples(&wf.data, &samples, wf.w_ref);
@@ -533,16 +588,16 @@ fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
     )
 }
 fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
-    let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
-    let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
+    let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"), &args.bin);
+    let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"), &args.bin);
 
-    let func = |samples: Vec<usize>| {
+    let func = |weights: Vec<f64>| {
         let mut mass = vec![];
         for t in args.effective_mass_t_min..=args.effective_mass_t_max {
             let m_ps_eff = effective_mass_all_t(
                 &f_ps
                     .obs
-                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .get_subsample_mean_stderr_from_weights(&weights)
                     .values,
                 f_ps.global_t,
                 1,
@@ -553,11 +608,11 @@ fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
             mass.push(effective_pcac(
                 &f_ap
                     .obs
-                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .get_subsample_mean_stderr_from_weights(&weights)
                     .values,
                 &f_ps
                     .obs
-                    .get_subsample_mean_stderr_from_samples(&samples)
+                    .get_subsample_mean_stderr_from_weights(&weights)
                     .values,
                 &m_ps_eff,
                 t,
@@ -565,13 +620,13 @@ fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
         }
         Some(mean(&mass))
     };
-
-    let results = bootstrap(func, f_ap.obs.nconfs, &args.boot);
-
-    results.print()
+    println!(
+        "{}",
+        serde_json::to_string(&bayesian_bootstrap(func, f_ap.obs.nconfs, &args.boot)).unwrap()
+    );
 }
 fn get_correlator_command(args: GetCorrelatorArgs) {
-    let corr = ObservableCalculation::load(&args.hmc, args.channel);
+    let corr = ObservableCalculation::load(&args.hmc, args.channel, &args.bin);
     println!(
         "{}",
         serde_json::to_string(&corr.obs.get_mean_stderr()).unwrap()
@@ -579,19 +634,15 @@ fn get_correlator_command(args: GetCorrelatorArgs) {
 }
 
 fn median_command(args: MedianArgs) {
-    if let Data { data: mut data } =
-        serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap()
-    {
-        let data = data.split_off(args.thermalisation);
-        let func = |samples: Vec<usize>| {
-            let mut smp = vec![];
-            for sample in samples {
-                smp.push(data[sample]);
-            }
-            return Some(median(&smp));
-        };
-        bootstrap(func, data.len(), &args.boot).print()
-    }
+    let Data { mut data } =
+        serde_json::from_str(&read_to_string(args.json_filename).unwrap()).unwrap();
+
+    let data = data.split_off(args.thermalisation);
+    let func = |weights: Vec<f64>| Some(weighted_median(&data, &weights));
+    println!(
+        "{}",
+        serde_json::to_string(&bayesian_bootstrap(func, data.len(), &args.boot)).unwrap()
+    );
 }
 
 fn plaquette_command(args: PlaquetteArgs) {
@@ -599,7 +650,7 @@ fn plaquette_command(args: PlaquetteArgs) {
     println!("{}", serde_json::to_string(&plaq).unwrap());
 }
 
-pub fn parser() {
+pub fn run() {
     let app = App::parse();
     match app.command {
         Command::ComputeEffectiveMass { args } => compute_effective_mass_command(args),

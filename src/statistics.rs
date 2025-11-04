@@ -1,10 +1,11 @@
+use approx::assert_abs_diff_eq;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Debug, Serialize)]
 pub struct SingleMeasurement {
-    value: f64,
-    error: f64,
+    pub value: f64,
+    pub error: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -15,15 +16,23 @@ pub struct Histogram {
 pub fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
 }
-pub fn median(values: &[f64]) -> f64 {
-    let mut values = values.to_vec();
-    values.par_sort_unstable_by(f64::total_cmp);
-    if values.len() % 2 == 1 {
-        return values[values.len() / 2];
-    } else {
-        return (values[(values.len() / 2) - 1] + values[values.len() / 2]) / 2.0;
+pub fn weighted_median(x: &[f64], w: &[f64]) -> f64 {
+    assert_abs_diff_eq!(w.iter().sum::<f64>(), 1.0, epsilon = f64::EPSILON * 100.0);
+    let mut v: Vec<(f64, f64)> = x.iter().zip(w).map(|(&xi, &wi)| (xi, wi)).collect();
+    v.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap()); // sort by x
+    let mut c = 0.0;
+    for (i, (xi, wi)) in v.iter().enumerate() {
+        c += wi;
+        if c == 0.5 {
+            return (v[i].0 + v[i + 1].0) / 2.0;
+        }
+        if c >= 0.5 {
+            return *xi;
+        }
     }
+    unreachable!();
 }
+
 pub fn standard_deviation(values: &[f64], corrected: bool) -> f64 {
     let mean = mean(values);
     (values.par_iter().map(|x| (x - mean).powi(2)).sum::<f64>()
@@ -31,15 +40,15 @@ pub fn standard_deviation(values: &[f64], corrected: bool) -> f64 {
     .sqrt()
 }
 
-pub fn standard_error(values: &[f64]) -> f64 {
-    let mean = mean(values);
-    values
-        .iter()
-        .map(|x| (x - mean).powi(2))
-        .sum::<f64>()
-        .sqrt()
-        / values.len() as f64
-}
+// pub fn standard_error(values: &[f64]) -> f64 {
+//     let mean = mean(values);
+//     values
+//         .iter()
+//         .map(|x| (x - mean).powi(2))
+//         .sum::<f64>()
+//         .sqrt()
+//         / values.len() as f64
+// }
 /// Performs the naive error propagation assuming `v1` and `v2` are independent.
 // pub fn propagate_ratio(v1: SingleMeasurement, v2: SingleMeasurement) -> SingleMeasurement {
 // SingleMeasurement {
@@ -75,19 +84,20 @@ pub fn centred_difference_derivative(input: &[f64], dx: f64) -> Vec<f64> {
 
 /// Computes the mean of a set of observables weighted by their errors.
 /// [Definition](https://en.wikipedia.org/wiki/Weighted_arithmetic_mean#Mathematical_definition)
-pub fn weighted_mean(sample: &[f64], errors: &[f64]) -> SingleMeasurement {
-    let weights: Vec<f64> = (0..sample.len())
-        .map(|n| 1.0 / errors[n].powf(2.0))
-        .collect();
+pub fn weighted_mean(sample: &[f64], weights: &[f64]) -> SingleMeasurement {
+    assert_eq!(sample.len(), weights.len());
     let mut sum_weight_times_sample = 0.0;
     let mut sum_weights = 0.0;
+    let mut sum_weights_square = 0.0;
     for i in 0..sample.len() {
         sum_weight_times_sample += weights[i] * sample[i];
         sum_weights += weights[i];
+        sum_weights_square += weights[i] * weights[i];
     }
+    assert_abs_diff_eq!(sum_weights, 1.0, epsilon = f64::EPSILON * 1000.0);
     SingleMeasurement {
         value: sum_weight_times_sample / sum_weights,
-        error: (1.0 / sum_weights).sqrt(),
+        error: (standard_deviation(sample, true)) * sum_weights_square.sqrt(),
     }
 }
 
@@ -136,26 +146,6 @@ pub fn bin(data: &[f64], nbins: usize) -> Histogram {
     }
 }
 
-// freq[0] = data.iter().filter(|x| *x == lower).count();
-// let windows: Vec<_> = bin_ranges.windows(2).collect();
-// for i in 0..nbins {
-//     freq[i] = data
-//         .iter()
-//         .filter(|x| **x > windows[i][0] && **x <= windows[i][1])
-//         .count();
-// }
-// bin_ranges.truncate(nbins);
-// let bin_centres: Vec<f64> = bin_ranges.iter().map(|x| x + stepsize / 2.0).collect();
-// assert!(freq.len() == bin_ranges.len());
-// let mut histogram = vec![];
-// for i in 0..freq.len() {
-//     histogram.push(HistogramRow {
-//         bin_centre: bin_centres[i],
-//         frequency: freq[i],
-//     })
-// }
-// histogram
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,13 +160,13 @@ mod tests {
         ];
         assert_eq!(mean(&x), 10.25);
     }
-    #[test]
-    fn standard_error_tests() {
-        let x = vec![
-            7.0, 12.0, 5.0, 18.0, 5.0, 9.0, 10.0, 9.0, 12.0, 8.0, 12.0, 16.0,
-        ];
-        assert_eq!(standard_error(&x), 1.1063265039459795);
-    }
+    // #[test]
+    // fn standard_error_tests() {
+    //     let x = vec![
+    //         7.0, 12.0, 5.0, 18.0, 5.0, 9.0, 10.0, 9.0, 12.0, 8.0, 12.0, 16.0,
+    //     ];
+    //     assert_eq!(standard_error(&x), 1.1063265039459795);
+    // }
     #[test]
     fn standard_deviation_tests() {
         let x = vec![4.0, 9.0, 11.0, 12.0, 17.0, 5.0, 8.0, 12.0, 14.0];
@@ -191,22 +181,27 @@ mod tests {
     #[test]
     fn weighted_mean_test() {
         let sample = vec![1.0, 2.0];
-        let err = vec![0.3, 0.2];
-        let w_mean = (1.6923076923076923, 0.16641005886756874);
+        let weights = vec![0.2, 0.8];
         assert_eq!(
-            weighted_mean(&sample, &err),
+            weighted_mean(&sample, &weights),
             SingleMeasurement {
-                value: 4.0,
-                error: 4.0
+                value: 1.8,
+                error: 0.5830951894845302
             }
         );
     }
     #[test]
     fn median_tests() {
         let sample = vec![1.0, 2.0, 3.0];
-        assert_eq!(median(&sample), 2.0);
+        assert_eq!(
+            weighted_median(&sample, &[1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]),
+            2.0
+        );
         let sample = vec![1.0, 2.0, 3.0, 4.0];
-        assert_eq!(median(&sample), 2.5);
+        assert_eq!(
+            weighted_median(&sample, &[1.0 / 4.0, 1.0 / 4.0, 1.0 / 4.0, 1.0 / 4.0]),
+            2.5
+        );
     }
     #[test]
     fn histogram_test() {

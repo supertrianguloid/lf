@@ -64,16 +64,16 @@ impl WilsonFlow {
         Self { t, t2_esym, tc }
     }
 
-    pub fn get_subsample_mean_stderr_from_samples(
+    pub fn get_subsample_mean_stderr_from_weights(
         &self,
-        samples: &[usize],
+        weights: &[f64],
         channel: WilsonFlowObservables,
     ) -> Measurement {
         match channel {
             WilsonFlowObservables::T2Esym => {
-                self.t2_esym.get_subsample_mean_stderr_from_samples(samples)
+                self.t2_esym.get_subsample_mean_stderr_from_weights(weights)
             }
-            WilsonFlowObservables::TC => self.tc.get_subsample_mean_stderr_from_samples(samples),
+            WilsonFlowObservables::TC => self.tc.get_subsample_mean_stderr_from_weights(weights),
             _ => unimplemented!(),
         }
     }
@@ -116,10 +116,10 @@ pub fn extract_tc(wf: WilsonFlow, tref: f64) -> Option<Vec<f64>> {
     Some(tc)
 }
 
-pub fn calculate_w0_from_samples(wf: &WilsonFlow, samples: &[usize], w_ref: f64) -> Option<f64> {
+pub fn calculate_w0_from_weights(wf: &WilsonFlow, weights: &[f64], w_ref: f64) -> Option<f64> {
     calculate_w0(
         calculate_w(
-            &wf.get_subsample_mean_stderr_from_samples(samples, WilsonFlowObservables::T2Esym)
+            &wf.get_subsample_mean_stderr_from_weights(weights, WilsonFlowObservables::T2Esym)
                 .values,
             &wf.t,
         ),
@@ -130,7 +130,7 @@ pub fn calculate_w0_from_samples(wf: &WilsonFlow, samples: &[usize], w_ref: f64)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bootstrap::get_samples;
+    use crate::bootstrap::get_uniform_weights;
     use crate::io::load_wf_observables_from_file;
     #[test]
     fn calculate_w0_test() {
@@ -139,8 +139,8 @@ mod tests {
             "{:?}",
             calculate_w0(
                 calculate_w(
-                    &wf.get_subsample_mean_stderr_from_samples(
-                        &get_samples(wf.tc.nconfs, 1),
+                    &wf.get_subsample_mean_stderr_from_weights(
+                        &get_uniform_weights(wf.tc.nconfs),
                         WilsonFlowObservables::T2Esym,
                     )
                     .values,

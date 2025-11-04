@@ -1,7 +1,7 @@
-use crate::observables::{Measurement, Observable};
+use crate::observables::Measurement;
 use crate::statistics::centred_difference_derivative;
 use nalgebra::DVector;
-use roots::{find_root_brent, SearchError, SimpleConvergency};
+use roots::{SearchError, SimpleConvergency, find_root_brent};
 use varpro::prelude::*;
 use varpro::problem::*;
 use varpro::solvers::levmar::LevMarSolver;

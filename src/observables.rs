@@ -1,9 +1,9 @@
 use serde::Serialize;
 
-use crate::bootstrap::get_samples;
+use crate::bootstrap::get_uniform_weights;
 use crate::io::{load_channel_from_file_folded, load_global_t_from_file};
-use crate::parser::HMCArgs;
-use crate::statistics::{mean, standard_error};
+use crate::parser::{BinArgs, HMCArgs};
+use crate::statistics::weighted_mean;
 
 #[derive(PartialEq, Debug, Serialize)]
 pub struct Measurement {
@@ -23,16 +23,17 @@ pub struct ObservableCalculation {
 }
 
 impl ObservableCalculation {
-    pub fn load(args: &HMCArgs, channel: String) -> Self {
+    pub fn load(args: &HMCArgs, channel: String, bin: &BinArgs) -> Self {
         ObservableCalculation {
             obs: load_channel_from_file_folded(&args.filename, &channel)
-                .thermalise(args.thermalisation),
+                .thermalise(args.thermalisation)
+                .bin_average(bin.binwidth),
             global_t: load_global_t_from_file(&args.filename),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Observable {
     pub each_len: usize,
     pub nconfs: usize,
@@ -63,21 +64,23 @@ impl Observable {
         }
     }
 
-    pub fn get_subsample_mean_stderr(&self, binsize: usize) -> Measurement {
-        self.get_subsample_mean_stderr_from_samples(&get_samples(self.nconfs, binsize))
-    }
+    // pub fn get_subsample_mean_stderr(&self) -> Measurement {
+    // self.get_subsample_mean_stderr_from_weights(&get_weights(self.nconfs))
+    // }
 
-    pub fn get_subsample_mean_stderr_from_samples(&self, samples: &[usize]) -> Measurement {
+    /// Return the weighted mean and error from an array of weights. The array must be the same length as the original data.
+    pub fn get_subsample_mean_stderr_from_weights(&self, weights: &[f64]) -> Measurement {
+        assert_eq!(self.nconfs, weights.len());
         let mut mu = vec![];
         let mut sigma = vec![];
         for t in 0..(self.each_len) {
             let mut temp = vec![];
-            for sample in samples.iter() {
-                temp.push(self.get_slice(*sample)[t]);
+            for i in 0..self.nconfs {
+                temp.push(self.get_slice(i)[t]);
             }
-            let mean = mean(&temp);
-            mu.push(mean);
-            sigma.push(standard_error(&temp));
+            let meas = weighted_mean(&temp, weights);
+            mu.push(meas.value);
+            sigma.push(meas.error);
         }
         Measurement::new(mu, sigma)
     }
@@ -91,7 +94,31 @@ impl Observable {
     }
 
     pub fn get_mean_stderr(&self) -> Measurement {
-        self.get_subsample_mean_stderr_from_samples(&(0..(self.nconfs - 1)).collect::<Vec<usize>>())
+        self.get_subsample_mean_stderr_from_weights(&get_uniform_weights(self.nconfs))
+    }
+
+    pub fn bin_average(self, binsize: usize) -> Self {
+        assert!(binsize > 0, "bin size must be > 0");
+
+        let offset = self.nconfs % binsize;
+        let out_rows = (self.nconfs - offset) / binsize;
+        let mut out = vec![0.0f64; out_rows * self.each_len];
+
+        for b in 0..out_rows {
+            for c in 0..self.each_len {
+                let mut sum = 0.0f64;
+                for r in 0..binsize {
+                    let src_row = offset + b * binsize + r;
+                    sum += self.data[src_row * self.each_len + c];
+                }
+                out[b * self.each_len + c] = sum / binsize as f64;
+            }
+        }
+        Self {
+            data: out,
+            nconfs: out_rows,
+            each_len: self.each_len,
+        }
     }
 }
 
@@ -136,9 +163,73 @@ mod tests {
             nconfs: 3,
             data: vec![2.0, 1.0, 2.0, 1.0, 2.0, 1.0],
         };
+        dbg!(get_uniform_weights(3));
         assert_eq!(
-            o.get_subsample_mean_stderr(1),
+            o.get_mean_stderr(),
             Measurement::new(vec![2.0, 1.0], vec![0.0, 0.0])
+        );
+    }
+    #[test]
+    fn observable_bin_length_one_does_nothing() {
+        let obs = Observable {
+            each_len: 3,
+            nconfs: 2,
+            data: vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0],
+        };
+        let binned = obs.bin_average(1);
+        assert_eq!(
+            binned,
+            Observable {
+                each_len: 3,
+                nconfs: 2,
+                data: vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0]
+            }
+        );
+    }
+    #[test]
+    fn observable_bin_simple() {
+        let obs = Observable {
+            each_len: 3,
+            nconfs: 2,
+            data: vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0],
+        };
+        let binned = obs.bin_average(2);
+        assert_eq!(
+            binned,
+            Observable {
+                each_len: 3,
+                nconfs: 1,
+                data: vec![2.0, 3.0, 4.0]
+            }
+        );
+    }
+    #[test]
+    fn observable_bin_g5() {
+        let obs = load_channel_from_file_folded("tests/out_test", "g5");
+
+        let binned = obs.bin_average(400);
+        dbg!(&binned);
+        assert_eq!(
+            binned.data,
+            vec![
+                0.00020271357752861842,
+                2.0815550113460623e-5,
+                4.963908574852205e-6,
+                1.5904561236425944e-6,
+                6.060660875220452e-7,
+                2.518530740656517e-7,
+                1.0936992255071622e-7,
+                4.860458723733243e-8,
+                2.187598116055109e-8,
+                9.908516896138259e-9,
+                4.502806185869573e-9,
+                2.052097539943126e-9,
+                9.389148530294929e-10,
+                4.3268002441656626e-10,
+                2.0482946938228817e-10,
+                1.0866893376096108e-10,
+                8.221017894175636e-11
+            ]
         );
     }
 }
