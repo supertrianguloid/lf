@@ -96,7 +96,7 @@ pub fn weighted_mean(sample: &[f64], weights: &[f64]) -> SingleMeasurement {
     }
     assert_abs_diff_eq!(sum_weights, 1.0, epsilon = f64::EPSILON * 1000.0);
     SingleMeasurement {
-        value: sum_weight_times_sample / sum_weights,
+        value: sum_weight_times_sample,
         error: (standard_deviation(sample, true)) * sum_weights_square.sqrt(),
     }
 }
