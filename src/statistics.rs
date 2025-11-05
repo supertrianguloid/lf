@@ -33,13 +33,6 @@ pub fn weighted_median(x: &[f64], w: &[f64]) -> f64 {
     unreachable!();
 }
 
-pub fn standard_deviation(values: &[f64], corrected: bool) -> f64 {
-    let mean = mean(values);
-    (values.par_iter().map(|x| (x - mean).powi(2)).sum::<f64>()
-        / (values.len() as f64 - if corrected { 1.0 } else { 0.0 }))
-    .sqrt()
-}
-
 // pub fn standard_error(values: &[f64]) -> f64 {
 //     let mean = mean(values);
 //     values
@@ -49,7 +42,7 @@ pub fn standard_deviation(values: &[f64], corrected: bool) -> f64 {
 //         .sqrt()
 //         / values.len() as f64
 // }
-/// Performs the naive error propagation assuming `v1` and `v2` are independent.
+// /// Performs the naive error propagation assuming `v1` and `v2` are independent.
 // pub fn propagate_ratio(v1: SingleMeasurement, v2: SingleMeasurement) -> SingleMeasurement {
 // SingleMeasurement {
 // value: v1.value / v2.value,
@@ -80,6 +73,20 @@ pub fn centred_difference_derivative(input: &[f64], dx: f64) -> Vec<f64> {
         result.push((input[i + 1] - input[i - 1]) / (2.0 * dx));
     }
     result
+}
+
+pub fn standard_deviation(values: &[f64], corrected: bool) -> f64 {
+    let mean = mean(values);
+    (values.par_iter().map(|x| (x - mean).powi(2)).sum::<f64>()
+        / (values.len() as f64 - if corrected { 1.0 } else { 0.0 }))
+    .sqrt()
+}
+
+pub fn weighted_standard_deviation(values: &[f64], weights: &[f64]) -> f64 {
+    assert_eq!(values.len(), weights.len());
+    let mean = mean(values);
+    (values.par_iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (values.len() as f64 - 1.0))
+        .sqrt()
 }
 
 /// Computes the mean of a set of observables weighted by their errors.
