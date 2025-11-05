@@ -643,7 +643,7 @@ pub fn run() {
         Command::ComputePCACMass { args } => compute_effective_pcac_mass_command(args),
         Command::ComputePCACMassFit { args } => bootstrap_pcac_fit_command(args),
         Command::GenerateCompletions {} => {
-            generate(Nushell, &mut App::command(), "reshotka", &mut stdout())
+            generate(Nushell, &mut App::command(), "lf", &mut stdout())
         }
     }
 }
