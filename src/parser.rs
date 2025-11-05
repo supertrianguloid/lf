@@ -391,10 +391,8 @@ fn bootstrap_correlator_fits_command(args: BootstrapCorrelatorFitsArgs) {
         Some(fit.mass)
     };
     dbg!(channel.obs.nconfs);
-    println!(
-        "{}",
-        serde_json::to_string(&bayesian_bootstrap(func, channel.obs.nconfs, &args.boot)).unwrap()
-    );
+    let bs = bayesian_bootstrap(func, channel.obs.nconfs, &args.boot);
+    bs.print();
 }
 
 fn bootstrap_fps_command(args: BootstrapFpsArgs) {
@@ -436,10 +434,8 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
         }
         Some((2.0 * mean(&mass) * (fit.coefficient * fit.mass).sqrt()) / (fit.mass * fit.mass))
     };
-    println!(
-        "{}",
-        serde_json::to_string(&bayesian_bootstrap(func, f_ps.obs.nconfs, &args.boot)).unwrap()
-    );
+    let bs = bayesian_bootstrap(func, f_ps.obs.nconfs, &args.boot);
+    bs.print();
 }
 fn bootstrap_fits_command(args: BootstrapFitsArgs) {
     let channel = ObservableCalculation::load(&args.hmc, args.channel, &args.bin);
@@ -469,10 +465,8 @@ fn bootstrap_fits_command(args: BootstrapFitsArgs) {
         };
         Some(mean(&masses) * factor)
     };
-    println!(
-        "{}",
-        serde_json::to_string(&bayesian_bootstrap(func, channel.obs.nconfs, &args.boot)).unwrap()
-    );
+    let bs = bayesian_bootstrap(func, channel.obs.nconfs, &args.boot);
+    bs.print();
 }
 fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
     let numerator_channel =
@@ -506,28 +500,14 @@ fn bootstrap_fits_ratio_command(args: BootstrapFitsRatioArgs) {
 
         Some(mean(&num_masses) / mean(&denom_masses))
     };
-    println!(
-        "{}",
-        serde_json::to_string(&bayesian_bootstrap(
-            func,
-            numerator_channel.obs.nconfs,
-            &args.boot
-        ))
-        .unwrap()
-    );
+    let bs = bayesian_bootstrap(func, numerator_channel.obs.nconfs, &args.boot);
+    bs.print();
 }
 fn calculate_w0_command(args: CalculateW0Args) {
     let wf = WilsonFlowCalculation::load(args.wf);
     let func = |weights: Vec<f64>| calculate_w0_from_weights(&wf.data, &weights, wf.w_ref);
-    println!(
-        "{}",
-        serde_json::to_string(&bayesian_bootstrap(
-            func,
-            wf.data.t2_esym.nconfs,
-            &args.boot
-        ))
-        .unwrap()
-    );
+    let bs = bayesian_bootstrap(func, wf.data.t2_esym.nconfs, &args.boot);
+    bs.print();
 }
 
 fn extract_tc_command(args: ExtractTCArgs) {
@@ -620,10 +600,8 @@ fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
         }
         Some(mean(&mass))
     };
-    println!(
-        "{}",
-        serde_json::to_string(&bayesian_bootstrap(func, f_ap.obs.nconfs, &args.boot)).unwrap()
-    );
+    let bs = bayesian_bootstrap(func, f_ap.obs.nconfs, &args.boot);
+    bs.print();
 }
 fn get_correlator_command(args: GetCorrelatorArgs) {
     let corr = ObservableCalculation::load(&args.hmc, args.channel, &args.bin);
@@ -639,10 +617,8 @@ fn median_command(args: MedianArgs) {
 
     let data = data.split_off(args.thermalisation);
     let func = |weights: Vec<f64>| Some(weighted_median(&data, &weights));
-    println!(
-        "{}",
-        serde_json::to_string(&bayesian_bootstrap(func, data.len(), &args.boot)).unwrap()
-    );
+    let bs = bayesian_bootstrap(func, data.len(), &args.boot);
+    bs.print();
 }
 
 fn plaquette_command(args: PlaquetteArgs) {

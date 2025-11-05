@@ -30,15 +30,24 @@ use std::iter;
 //     DoubleBootstrap(Vec<Vec<f64>>),
 // }
 #[derive(Debug, Serialize, Deserialize)]
-pub struct BayesianBootstrapResult {
-    n_boot: usize,
-    replicas: Vec<f64>,
-    failed_samples: usize,
-    histogram: Histogram,
+pub enum BootstrapResult {
+    Bayesian {
+        n_boot: usize,
+        replicas: Vec<f64>,
+        failed_samples: usize,
+        histogram: Histogram,
+    },
 }
-impl BayesianBootstrapResult {
+impl BootstrapResult {
     pub fn error(&self) -> f64 {
-        standard_deviation(&self.replicas, true)
+        match self {
+            BootstrapResult::Bayesian {
+                replicas: replicas, ..
+            } => standard_deviation(&replicas, true),
+        }
+    }
+    pub fn print(&self) -> () {
+        println!("{}", serde_json::to_string(&self).unwrap());
     }
 }
 
@@ -89,11 +98,7 @@ pub fn get_uniform_weights(length: usize) -> Vec<f64> {
 //     result
 // }
 
-pub fn bayesian_bootstrap<T>(
-    func: T,
-    length: usize,
-    args: &BootstrapArgs,
-) -> BayesianBootstrapResult
+pub fn bayesian_bootstrap<T>(func: T, length: usize, args: &BootstrapArgs) -> BootstrapResult
 where
     T: Fn(Vec<f64>) -> Option<f64> + Sync + Send,
 {
@@ -112,11 +117,11 @@ where
             .map(|_| func(rand::rng().sample(&dist)))
             .collect(),
     );
-    BayesianBootstrapResult {
+    BootstrapResult::Bayesian {
         n_boot: args.n_boot,
         failed_samples: (args.n_boot - replicas.len()),
         histogram: bin(&replicas, args.n_bins_histogram),
-        replicas: replicas,
+        replicas,
     }
 }
 fn drop_nones(results: Vec<Option<f64>>) -> Vec<f64> {
