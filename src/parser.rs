@@ -4,7 +4,7 @@ use crate::observables::{Measurement, ObservableCalculation};
 use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac, fit_cosh};
 use crate::statistics::{mean, standard_deviation, weighted_mean, weighted_median};
 use crate::wilsonflow::{WilsonFlowCalculation, calculate_w0_from_weights, extract_tc};
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::generate;
 use clap_complete_nushell::Nushell;
 use rayon::prelude::*;
@@ -122,16 +122,24 @@ pub struct BinArgs {
     #[arg(short, long, value_name = "BIN_WIDTH", default_value_t = 1)]
     pub binwidth: usize,
 }
+
+#[derive(Parser, Debug, Clone, ValueEnum)]
+pub enum BootstrapType {
+    BlockBayesian,
+    Thinned,
+    BlockBootstrap,
+}
+
 #[derive(Parser, Debug)]
 pub struct BootstrapArgs {
     #[arg(short, long, value_name = "BOOTSTRAP_SAMPLES", default_value_t = 1000)]
     pub n_boot: usize,
     #[arg(long, value_name = "DOUBLE_BOOTSTRAP_SAMPLES")]
     pub n_boot_double: Option<u32>,
-    #[arg(long, value_name = "DIRICHLET_ALPHA", default_value_t = 1.0)]
-    pub dirichlet_alpha: f64,
     #[arg(long, value_name = "HISTOGRAM_BINS", default_value_t = 1000)]
     pub n_bins_histogram: usize,
+    #[arg(long, value_enum)]
+    pub boot_type: BootstrapType,
 }
 
 #[derive(Parser, Debug)]
