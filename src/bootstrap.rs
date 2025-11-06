@@ -1,5 +1,6 @@
-use crate::parser::BootstrapArgs;
+use crate::parser::{BootstrapArgs, BootstrapType};
 use crate::statistics::{Histogram, bin, standard_deviation};
+use indicatif::{ParallelProgressIterator, ProgressStyle};
 // use nalgebra::DVector;
 use rand::Rng;
 use rand_distr::multi::Dirichlet;
@@ -102,18 +103,26 @@ pub fn bayesian_bootstrap<T>(func: T, length: usize, args: &BootstrapArgs) -> Bo
 where
     T: Fn(Vec<f64>) -> Option<f64> + Sync + Send,
 {
-    let dist = Dirichlet::new(
-        &iter::repeat(args.dirichlet_alpha)
-            .take(length)
-            .collect::<Vec<f64>>(),
-    )
-    .expect("Could not create Dirichlet distribution.");
+    let dist = match args.boot_type {
+        BootstrapType::BlockBayesian => {
+            Dirichlet::new(&iter::repeat(1.0).take(length).collect::<Vec<f64>>())
+                .expect("Could not create Dirichlet distribution.")
+        }
+
+        _ => unimplemented!(),
+    };
     let x = rand::rng().sample(&dist);
     dbg!(&x);
     dbg!(x.iter().sum::<f64>());
     let replicas = drop_nones(
         (0..args.n_boot)
             .into_par_iter()
+            .progress_with_style(
+                ProgressStyle::with_template(
+                    "{spinner:.green} [{eta_precise}] [{wide_bar:.cyan/blue}] [{pos}/{len}]",
+                )
+                .unwrap(),
+            )
             .map(|_| func(rand::rng().sample(&dist)))
             .collect(),
     );
@@ -272,8 +281,8 @@ fn test_bayesian_bootstrap() {
         &BootstrapArgs {
             n_boot: 1000,
             n_boot_double: None,
-            dirichlet_alpha: 1.0,
             n_bins_histogram: 10,
+            boot_type: BootstrapType::BlockBayesian,
         },
     );
 }
