@@ -85,10 +85,10 @@ pub fn weighted_mean(sample: &[f64], errors: &[f64]) -> SingleMeasurement {
         sum_weight_times_sample += weights[i] * sample[i];
         sum_weights += weights[i];
     }
-    (
-        sum_weight_times_sample / sum_weights,
-        (1.0 / sum_weights).sqrt(),
-    )
+    SingleMeasurement {
+        value: sum_weight_times_sample / sum_weights,
+        error: (1.0 / sum_weights).sqrt(),
+    }
 }
 
 pub fn bin(data: &[f64], nbins: usize) -> Histogram {
