@@ -369,18 +369,17 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
             args.ps_effective_mass_t_max + 1,
         )?;
         let mut mass = vec![];
+        let m_ps_eff = effective_mass_all_t(
+            &f_ps
+                .obs
+                .get_subsample_mean_stderr_from_samples(&samples)
+                .values,
+            f_ps.global_t,
+            1,
+            f_ap.global_t / 2,
+            args.solver_precision,
+        )?;
         for t in args.pcac_effective_mass_t_min..=args.pcac_effective_mass_t_max {
-            let m_ps_eff = effective_mass_all_t(
-                &f_ps
-                    .obs
-                    .get_subsample_mean_stderr_from_samples(&samples)
-                    .values,
-                f_ps.global_t,
-                1,
-                f_ap.global_t / 2,
-                args.solver_precision,
-            )?;
-
             mass.push(effective_pcac(
                 &f_ap
                     .obs
