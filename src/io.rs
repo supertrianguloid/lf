@@ -80,6 +80,22 @@ pub fn load_global_t_from_file(hmc_filename: &str) -> usize {
         .parse::<usize>()
         .unwrap()
 }
+pub fn load_global_l_from_file(hmc_filename: &str) -> usize {
+    BufReader::new(File::open(hmc_filename).unwrap())
+        .lines()
+        .map(|line| line.unwrap())
+        .find(|line| line.contains("Global size is"))
+        .unwrap()
+        .split(" ")
+        .nth(3)
+        .unwrap()
+        .trim()
+        .split("x")
+        .nth(2)
+        .unwrap()
+        .parse::<usize>()
+        .unwrap()
+}
 pub fn load_wf_observables_from_file(wf_filename: &str) -> WilsonFlow {
     let mut t: Vec<_> = vec![];
     let mut t2_esym: Vec<_> = vec![];

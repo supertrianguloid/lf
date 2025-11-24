@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 use crate::bootstrap::get_samples;
-use crate::io::{load_channel_from_file_folded, load_global_t_from_file};
+use crate::io::{load_channel_from_file_folded, load_global_l_from_file, load_global_t_from_file};
 use crate::parser::HMCArgs;
 use crate::statistics::{mean, standard_error};
 
@@ -20,6 +20,7 @@ impl Measurement {
 pub struct ObservableCalculation {
     pub obs: Observable,
     pub global_t: usize,
+    pub global_l: usize,
 }
 
 impl ObservableCalculation {
@@ -28,6 +29,7 @@ impl ObservableCalculation {
             obs: load_channel_from_file_folded(&args.filename, &channel)
                 .thermalise(args.thermalisation),
             global_t: load_global_t_from_file(&args.filename),
+            global_l: load_global_l_from_file(&args.filename),
         }
     }
 }
