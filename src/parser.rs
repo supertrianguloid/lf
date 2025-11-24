@@ -355,6 +355,17 @@ fn bootstrap_correlator_fits_command(args: BootstrapCorrelatorFitsArgs) {
         Some(fit.mass)
     };
     bootstrap(func, channel.obs.nconfs, &args.boot).print();
+    let func = |samples: Vec<usize>| {
+        let corr = &channel.obs.get_subsample_mean_stderr_from_samples(&samples);
+        let fit = fit_cosh(
+            corr,
+            channel.global_t,
+            args.effective_mass_t_min,
+            args.effective_mass_t_max,
+        )?;
+        Some(fit.coefficient)
+    };
+    bootstrap(func, channel.obs.nconfs, &args.boot).print();
 }
 
 fn bootstrap_fps_command(args: BootstrapFpsArgs) {
