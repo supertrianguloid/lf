@@ -406,8 +406,7 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
         }
         Some(
             (2.0 * mean(&pcac)
-                * ((((f_ap.global_t * f_ap.global_l * f_ap.global_l * f_ap.global_l) as f64)
-                    / 8.0)
+                * ((((f_ap.global_l * f_ap.global_l * f_ap.global_l) as f64) / 2.0)
                     * fit.coefficient
                     * fit.mass
                     / (-fit.mass * (f_ap.global_t as f64) / 2.0).exp())
