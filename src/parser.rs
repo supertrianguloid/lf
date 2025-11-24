@@ -368,7 +368,7 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
             args.ps_effective_mass_t_min,
             args.ps_effective_mass_t_max + 1,
         )?;
-        let mut mass = vec![];
+        let mut pcac = vec![];
         let m_ps_eff = effective_mass_all_t(
             &f_ps
                 .obs
@@ -380,7 +380,7 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
             args.solver_precision,
         )?;
         for t in args.pcac_effective_mass_t_min..=args.pcac_effective_mass_t_max {
-            mass.push(effective_pcac(
+            pcac.push(effective_pcac(
                 &f_ap
                     .obs
                     .get_subsample_mean_stderr_from_samples(&samples)
@@ -393,7 +393,12 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
                 t,
             ));
         }
-        Some((2.0 * mean(&mass) * (fit.coefficient * fit.mass).sqrt()) / (fit.mass * fit.mass))
+        Some(
+            (2.0 * mean(&pcac)
+                * (fit.coefficient * fit.mass / (-fit.mass * (f_ap.global_t as f64) / 2.0).exp())
+                    .sqrt())
+                / (fit.mass * fit.mass),
+        )
     };
     bootstrap(func, f_ps.obs.nconfs, &args.boot).print();
 }
