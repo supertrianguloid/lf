@@ -193,7 +193,13 @@ mod tests {
         let sample = vec![1.0, 2.0];
         let err = vec![0.3, 0.2];
         let w_mean = (1.6923076923076923, 0.16641005886756874);
-        assert_eq!(weighted_mean(&sample, &err), w_mean);
+        assert_eq!(
+            weighted_mean(&sample, &err),
+            SingleMeasurement {
+                value: w_mean.0,
+                error: w_mean.1
+            }
+        );
     }
     #[test]
     fn median_tests() {
