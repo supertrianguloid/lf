@@ -34,7 +34,7 @@ impl ObservableCalculation {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Observable {
     pub each_len: usize,
     pub nconfs: usize,
@@ -92,6 +92,66 @@ impl Observable {
         }
     }
 
+    // pub fn block_average(mut self, blocksize: usize) -> Observable {
+    //     // First remove an initial offset before block-averaging
+    //     dbg!(offset);
+
+    //     let obs = Observable {
+    //         data: self.data.split_off(offset * self.each_len),
+    //         nconfs: self.nconfs - offset,
+    //         each_len: self.each_len,
+    //     };
+
+    //     dbg!(obs);
+
+    //     let mut new_data = vec![];
+
+    //     for block in 0..(self.nconfs / blocksize) {
+    //         let mut tmp_inner = vec![];
+    //         for i in 0..blocksize {
+    //             for v in obs.get_slice(block * blocksize + i) {
+    //                 tmp_inner.push(v / blocksize as f64)
+    //             }
+    //         }
+    //         new_data.push(tmp_inner);
+    //     }
+    //     Observable {
+    //         nconfs: self.nconfs / blocksize,
+    //         each_len: self.each_len,
+    //         data: new_data.into_iter().flatten().collect(),
+    //     }
+    // }
+    pub fn block_average(mut self, blocksize: usize) -> Observable {
+        let offset = self.nconfs % blocksize;
+
+        let obs = Observable {
+            data: self.data.split_off(offset * self.each_len),
+            nconfs: self.nconfs - offset,
+            each_len: self.each_len,
+        };
+
+        let mut new_data = Vec::with_capacity(obs.nconfs / blocksize * obs.each_len);
+        let num_blocks = obs.nconfs / blocksize;
+
+        for block in 0..num_blocks {
+            let mut block_sum = vec![0.0; obs.each_len];
+            for i in 0..blocksize {
+                let config_data = obs.get_slice(block * blocksize + i);
+                for (j, v) in config_data.iter().enumerate() {
+                    block_sum[j] += v;
+                }
+            }
+            for sum in block_sum.into_iter() {
+                new_data.push(sum / blocksize as f64);
+            }
+        }
+        Observable {
+            nconfs: num_blocks,
+            each_len: self.each_len,
+            data: new_data,
+        }
+    }
+
     pub fn get_mean_stderr(&self) -> Measurement {
         self.get_subsample_mean_stderr_from_samples(&(0..(self.nconfs - 1)).collect::<Vec<usize>>())
     }
@@ -112,6 +172,24 @@ mod tests {
         assert_eq!(obs.get_slice(2), &vec![4.0, 5.0]);
         let obs = obs.thermalise(2);
         assert_eq!(obs.get_slice(0), &vec![4.0, 5.0]);
+    }
+    #[test]
+    fn observable_blocksize_one_does_nothing_test() {
+        let obs = Observable {
+            each_len: 2,
+            nconfs: 3,
+            data: vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0],
+        };
+        assert_eq!(&obs.clone().block_average(1).data, &obs.data);
+    }
+    #[test]
+    fn observable_blocksize_two_test() {
+        let obs = Observable {
+            each_len: 2,
+            nconfs: 3,
+            data: vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0],
+        };
+        assert_eq!(&obs.clone().block_average(2).data, &vec![3.5, 4.0]);
     }
     #[test]
     fn average_observable_test() {
