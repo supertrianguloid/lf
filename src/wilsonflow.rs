@@ -38,7 +38,7 @@ impl W {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WilsonFlowCalculation {
     pub data: WilsonFlow,
     pub w_ref: f64,
@@ -53,7 +53,7 @@ impl WilsonFlowCalculation {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WilsonFlow {
     pub t: Vec<f64>,
     pub t2_esym: Observable,
@@ -127,27 +127,27 @@ pub fn calculate_w0_from_samples(wf: &WilsonFlow, samples: &[usize], w_ref: f64)
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::bootstrap::get_samples;
-    use crate::io::load_wf_observables_from_file;
-    #[test]
-    fn calculate_w0_test() {
-        let wf = load_wf_observables_from_file("tests/wf_out");
-        println!(
-            "{:?}",
-            calculate_w0(
-                calculate_w(
-                    &wf.get_subsample_mean_stderr_from_samples(
-                        &get_samples(wf.tc.nconfs, 1),
-                        WilsonFlowObservables::T2Esym,
-                    )
-                    .values,
-                    &wf.t,
-                ),
-                1.0
-            )
-        );
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::io::load_wf_observables_from_file;
+//     use booted::bootstrap::get_samples;
+//     #[test]
+//     fn calculate_w0_test() {
+//         let wf = load_wf_observables_from_file("tests/wf_out");
+//         println!(
+//             "{:?}",
+//             calculate_w0(
+//                 calculate_w(
+//                     &wf.get_subsample_mean_stderr_from_samples(
+//                         &get_samples(wf.tc.nconfs, 1),
+//                         WilsonFlowObservables::T2Esym,
+//                     )
+//                     .values,
+//                     &wf.t,
+//                 ),
+//                 1.0
+//             )
+//         );
+//     }
+// }

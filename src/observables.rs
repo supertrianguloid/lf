@@ -1,9 +1,13 @@
 use serde::Serialize;
 
-use crate::bootstrap::get_samples;
+// use crate::bootstrap::get_samples;
 use crate::io::{load_channel_from_file_folded, load_global_l_from_file, load_global_t_from_file};
-use crate::parser::HMCArgs;
+use crate::parser::{BinBootstrapArgs, HMCArgs};
 use crate::statistics::{mean, standard_error};
+use booted::bootstrap::{Bootstrap, BootstrapStatistic, Estimator};
+use serde_json::to_string;
+
+use rand::distr::{Distribution, Uniform};
 
 #[derive(PartialEq, Debug, Serialize)]
 pub struct Measurement {
@@ -21,6 +25,30 @@ pub struct ObservableCalculation {
     pub obs: Observable,
     pub global_t: usize,
     pub global_l: usize,
+}
+pub fn get_samples(length: usize, binsize: usize) -> Vec<usize> {
+    let length_new = length / binsize;
+    let mut rng = rand::rng();
+    let samples: Vec<_> = Uniform::try_from(0..length)
+        .unwrap()
+        .sample_iter(&mut rng)
+        .take(length_new)
+        .collect();
+    samples
+}
+
+pub fn bootstrap<F, T>(estimator: Estimator<F>, args: BinBootstrapArgs)
+where
+    F: Fn(&[usize]) -> Option<T> + Send + Sync,
+    T: BootstrapStatistic,
+{
+    let result = Bootstrap::builder()
+        .n_boot(args.n_boot)
+        .sampler(booted::samplers::SamplingStrategy::Simple)
+        .estimator(estimator)
+        .build()
+        .run();
+    println!("{}", to_string(&result).unwrap());
 }
 
 impl ObservableCalculation {
@@ -92,35 +120,6 @@ impl Observable {
         }
     }
 
-    // pub fn block_average(mut self, blocksize: usize) -> Observable {
-    //     // First remove an initial offset before block-averaging
-    //     dbg!(offset);
-
-    //     let obs = Observable {
-    //         data: self.data.split_off(offset * self.each_len),
-    //         nconfs: self.nconfs - offset,
-    //         each_len: self.each_len,
-    //     };
-
-    //     dbg!(obs);
-
-    //     let mut new_data = vec![];
-
-    //     for block in 0..(self.nconfs / blocksize) {
-    //         let mut tmp_inner = vec![];
-    //         for i in 0..blocksize {
-    //             for v in obs.get_slice(block * blocksize + i) {
-    //                 tmp_inner.push(v / blocksize as f64)
-    //             }
-    //         }
-    //         new_data.push(tmp_inner);
-    //     }
-    //     Observable {
-    //         nconfs: self.nconfs / blocksize,
-    //         each_len: self.each_len,
-    //         data: new_data.into_iter().flatten().collect(),
-    //     }
-    // }
     pub fn block_average(mut self, blocksize: usize) -> Observable {
         let offset = self.nconfs % blocksize;
 
