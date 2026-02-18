@@ -78,6 +78,7 @@ where
                     .estimator(outer_estimator)
                     .build()
                     .run()
+                    .summarize()
             )
             .unwrap()
         );
@@ -94,6 +95,7 @@ where
                     .estimator(estimator)
                     .build()
                     .run()
+                    .summarize()
             )
             .unwrap()
         );
