@@ -1,5 +1,5 @@
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(PartialEq, Debug, Serialize)]
 pub struct SingleMeasurement {
@@ -7,11 +7,11 @@ pub struct SingleMeasurement {
     error: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Histogram {
-    bin_centres: Vec<f64>,
-    frequencies: Vec<usize>,
-}
+// #[derive(Debug, Serialize, Deserialize, PartialEq)]
+// pub struct Histogram {
+//     bin_centres: Vec<f64>,
+//     frequencies: Vec<usize>,
+// }
 pub fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
 }
@@ -91,50 +91,50 @@ pub fn weighted_mean(sample: &[f64], errors: &[f64]) -> SingleMeasurement {
     }
 }
 
-pub fn bin(data: &[f64], nbins: usize) -> Histogram {
-    assert!(nbins > 0, "nbins must be > 0");
-    assert!(!data.is_empty(), "data must be non-empty");
+// pub fn bin(data: &[f64], nbins: usize) -> Histogram {
+//     assert!(nbins > 0, "nbins must be > 0");
+//     assert!(!data.is_empty(), "data must be non-empty");
 
-    // Optionally ignore non-finite values; keep them if you prefer.
-    let finite: Vec<f64> = data.iter().copied().filter(|v| v.is_finite()).collect();
-    assert!(!finite.is_empty(), "no finite values in data");
+//     // Optionally ignore non-finite values; keep them if you prefer.
+//     let finite: Vec<f64> = data.iter().copied().filter(|v| v.is_finite()).collect();
+//     assert!(!finite.is_empty(), "no finite values in data");
 
-    // Find bounds (deref the &f64 from iterators)
-    let lower = finite.iter().copied().reduce(f64::min).unwrap();
-    let upper = finite.iter().copied().reduce(f64::max).unwrap();
+//     // Find bounds (deref the &f64 from iterators)
+//     let lower = finite.iter().copied().reduce(f64::min).unwrap();
+//     let upper = finite.iter().copied().reduce(f64::max).unwrap();
 
-    // Handle degenerate case: all values equal
-    let span = upper - lower;
-    let stepsize = if span > 0.0 { span / nbins as f64 } else { 1.0 };
+//     // Handle degenerate case: all values equal
+//     let span = upper - lower;
+//     let stepsize = if span > 0.0 { span / nbins as f64 } else { 1.0 };
 
-    // Precompute centres as true midpoints
-    let bin_centres: Vec<f64> = (0..nbins)
-        .map(|i| lower + (i as f64 + 0.5) * stepsize)
-        .collect();
+//     // Precompute centres as true midpoints
+//     let bin_centres: Vec<f64> = (0..nbins)
+//         .map(|i| lower + (i as f64 + 0.5) * stepsize)
+//         .collect();
 
-    // Count in O(n); clamp right edge into the last bin
-    let mut frequencies = vec![0usize; nbins];
-    if span == 0.0 {
-        // put all mass in the middle bin (or choose 0; policy choice)
-        frequencies[nbins / 2] = finite.len();
-    } else {
-        for &v in &finite {
-            let mut idx = ((v - lower) / stepsize).floor() as isize;
-            if idx < 0 {
-                idx = 0;
-            }
-            if idx as usize >= nbins {
-                idx = nbins as isize - 1;
-            } // includes v == upper
-            frequencies[idx as usize] += 1;
-        }
-    }
+//     // Count in O(n); clamp right edge into the last bin
+//     let mut frequencies = vec![0usize; nbins];
+//     if span == 0.0 {
+//         // put all mass in the middle bin (or choose 0; policy choice)
+//         frequencies[nbins / 2] = finite.len();
+//     } else {
+//         for &v in &finite {
+//             let mut idx = ((v - lower) / stepsize).floor() as isize;
+//             if idx < 0 {
+//                 idx = 0;
+//             }
+//             if idx as usize >= nbins {
+//                 idx = nbins as isize - 1;
+//             } // includes v == upper
+//             frequencies[idx as usize] += 1;
+//         }
+//     }
 
-    Histogram {
-        bin_centres,
-        frequencies,
-    }
-}
+//     Histogram {
+//         bin_centres,
+//         frequencies,
+//     }
+// }
 
 // freq[0] = data.iter().filter(|x| *x == lower).count();
 // let windows: Vec<_> = bin_ranges.windows(2).collect();

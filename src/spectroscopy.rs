@@ -1,4 +1,4 @@
-use crate::observables::{Measurement, Observable};
+use crate::observables::Measurement;
 use crate::statistics::centred_difference_derivative;
 use nalgebra::DVector;
 use roots::{find_root_brent, SearchError, SimpleConvergency};

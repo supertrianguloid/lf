@@ -42,12 +42,10 @@ pub fn get_samples(length: usize, binsize: usize) -> Vec<usize> {
 pub fn bootstrap<F, T>(estimator: Estimator<F>, args: BootstrapArgs)
 where
     F: Fn(&[usize]) -> Option<T> + Send + Sync + Clone + 'static,
-    T: SummaryStatistic, // <--- CRITICAL BOUND
+    T: SummaryStatistic,
 {
     if let Some(n_boot_double) = args.n_boot_double {
-        // --- Double Bootstrap ---
         let est = estimator.clone();
-
         let outer_estimator = Estimator::new()
             .indices(estimator.indices().to_owned())
             .from(move |indices: &[usize]| {
@@ -55,7 +53,9 @@ where
 
                 let inner_result: BootstrapResult<T> = Bootstrap::builder()
                     .n_boot(args.n_boot)
-                    .sampler(SamplingStrategy::Simple)
+                    .sampler(SamplingStrategy::Block {
+                        block_size: args.blocksize,
+                    })
                     .estimator(inner_estimator)
                     .build()
                     .run();
@@ -88,7 +88,9 @@ where
             to_string(
                 &Bootstrap::builder()
                     .n_boot(args.n_boot)
-                    .sampler(SamplingStrategy::Simple)
+                    .sampler(SamplingStrategy::Block {
+                        block_size: args.blocksize,
+                    })
                     .estimator(estimator)
                     .build()
                     .run()
@@ -167,36 +169,36 @@ impl Observable {
         }
     }
 
-    pub fn block_average(mut self, blocksize: usize) -> Observable {
-        let offset = self.nconfs % blocksize;
+    // pub fn block_average(mut self, blocksize: usize) -> Observable {
+    //     let offset = self.nconfs % blocksize;
 
-        let obs = Observable {
-            data: self.data.split_off(offset * self.each_len),
-            nconfs: self.nconfs - offset,
-            each_len: self.each_len,
-        };
+    //     let obs = Observable {
+    //         data: self.data.split_off(offset * self.each_len),
+    //         nconfs: self.nconfs - offset,
+    //         each_len: self.each_len,
+    //     };
 
-        let mut new_data = Vec::with_capacity(obs.nconfs / blocksize * obs.each_len);
-        let num_blocks = obs.nconfs / blocksize;
+    //     let mut new_data = Vec::with_capacity(obs.nconfs / blocksize * obs.each_len);
+    //     let num_blocks = obs.nconfs / blocksize;
 
-        for block in 0..num_blocks {
-            let mut block_sum = vec![0.0; obs.each_len];
-            for i in 0..blocksize {
-                let config_data = obs.get_slice(block * blocksize + i);
-                for (j, v) in config_data.iter().enumerate() {
-                    block_sum[j] += v;
-                }
-            }
-            for sum in block_sum.into_iter() {
-                new_data.push(sum / blocksize as f64);
-            }
-        }
-        Observable {
-            nconfs: num_blocks,
-            each_len: self.each_len,
-            data: new_data,
-        }
-    }
+    //     for block in 0..num_blocks {
+    //         let mut block_sum = vec![0.0; obs.each_len];
+    //         for i in 0..blocksize {
+    //             let config_data = obs.get_slice(block * blocksize + i);
+    //             for (j, v) in config_data.iter().enumerate() {
+    //                 block_sum[j] += v;
+    //             }
+    //         }
+    //         for sum in block_sum.into_iter() {
+    //             new_data.push(sum / blocksize as f64);
+    //         }
+    //     }
+    //     Observable {
+    //         nconfs: num_blocks,
+    //         each_len: self.each_len,
+    //         data: new_data,
+    //     }
+    // }
 
     pub fn get_mean_stderr(&self) -> Measurement {
         self.get_subsample_mean_stderr_from_samples(&(0..(self.nconfs - 1)).collect::<Vec<usize>>())
@@ -219,24 +221,24 @@ mod tests {
         let obs = obs.thermalise(2);
         assert_eq!(obs.get_slice(0), &vec![4.0, 5.0]);
     }
-    #[test]
-    fn observable_blocksize_one_does_nothing_test() {
-        let obs = Observable {
-            each_len: 2,
-            nconfs: 3,
-            data: vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0],
-        };
-        assert_eq!(&obs.clone().block_average(1).data, &obs.data);
-    }
-    #[test]
-    fn observable_blocksize_two_test() {
-        let obs = Observable {
-            each_len: 2,
-            nconfs: 3,
-            data: vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0],
-        };
-        assert_eq!(&obs.clone().block_average(2).data, &vec![3.5, 4.0]);
-    }
+    // #[test]
+    // fn observable_blocksize_one_does_nothing_test() {
+    //     let obs = Observable {
+    //         each_len: 2,
+    //         nconfs: 3,
+    //         data: vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0],
+    //     };
+    //     assert_eq!(&obs.clone().block_average(1).data, &obs.data);
+    // }
+    // #[test]
+    // fn observable_blocksize_two_test() {
+    //     let obs = Observable {
+    //         each_len: 2,
+    //         nconfs: 3,
+    //         data: vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0],
+    //     };
+    //     assert_eq!(&obs.clone().block_average(2).data, &vec![3.5, 4.0]);
+    // }
     #[test]
     fn average_observable_test() {
         let obs = Observable {
