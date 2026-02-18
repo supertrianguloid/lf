@@ -2,9 +2,11 @@ use serde::Serialize;
 
 // use crate::bootstrap::get_samples;
 use crate::io::{load_channel_from_file_folded, load_global_l_from_file, load_global_t_from_file};
-use crate::parser::{BinBootstrapArgs, HMCArgs};
+use crate::parser::{BootstrapArgs, HMCArgs};
 use crate::statistics::{mean, standard_error};
-use booted::bootstrap::{Bootstrap, BootstrapStatistic, Estimator};
+use booted::bootstrap::{Bootstrap, BootstrapResult, Estimator};
+use booted::samplers::SamplingStrategy;
+use booted::summary::{BootstrapSummary, Summarizable, SummaryStatistic};
 use serde_json::to_string;
 
 use rand::distr::{Distribution, Uniform};
@@ -37,18 +39,63 @@ pub fn get_samples(length: usize, binsize: usize) -> Vec<usize> {
     samples
 }
 
-pub fn bootstrap<F, T>(estimator: Estimator<F>, args: BinBootstrapArgs)
+pub fn bootstrap<F, T>(estimator: Estimator<F>, args: BootstrapArgs)
 where
-    F: Fn(&[usize]) -> Option<T> + Send + Sync,
-    T: BootstrapStatistic,
+    F: Fn(&[usize]) -> Option<T> + Send + Sync + Clone + 'static,
+    T: SummaryStatistic, // <--- CRITICAL BOUND
 {
-    let result = Bootstrap::builder()
-        .n_boot(args.n_boot)
-        .sampler(booted::samplers::SamplingStrategy::Simple)
-        .estimator(estimator)
-        .build()
-        .run();
-    println!("{}", to_string(&result).unwrap());
+    if let Some(n_boot_double) = args.n_boot_double {
+        // --- Double Bootstrap ---
+        let est = estimator.clone();
+
+        let outer_estimator = Estimator::new()
+            .indices(estimator.indices().to_owned())
+            .from(move |indices: &[usize]| {
+                let inner_estimator = est.clone().set_indices(indices.to_owned());
+
+                let inner_result: BootstrapResult<T> = Bootstrap::builder()
+                    .n_boot(args.n_boot)
+                    .sampler(SamplingStrategy::Simple)
+                    .estimator(inner_estimator)
+                    .build()
+                    .run();
+
+                let summary: BootstrapSummary<T> = inner_result.summarize();
+
+                // Now T::standard_error works because T: SummaryStatistic
+                Some(T::standard_error(&summary.statistics))
+            })
+            .build();
+
+        println!(
+            "{}",
+            to_string(
+                &Bootstrap::builder()
+                    .n_boot(n_boot_double)
+                    .sampler(SamplingStrategy::Block {
+                        block_size: args.blocksize,
+                    })
+                    .estimator(outer_estimator)
+                    .build()
+                    .run()
+            )
+            .unwrap()
+        );
+    } else {
+        // --- Single Bootstrap ---
+        println!(
+            "{}",
+            to_string(
+                &Bootstrap::builder()
+                    .n_boot(args.n_boot)
+                    .sampler(SamplingStrategy::Simple)
+                    .estimator(estimator)
+                    .build()
+                    .run()
+            )
+            .unwrap()
+        );
+    }
 }
 
 impl ObservableCalculation {
