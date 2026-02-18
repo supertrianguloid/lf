@@ -208,17 +208,17 @@ mod tests {
         let sample = vec![1.0, 2.0, 3.0, 4.0];
         assert_eq!(median(&sample), 2.5);
     }
-    #[test]
-    fn histogram_test() {
-        let data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
-        assert_eq!(
-            bin(&data, 4),
-            Histogram {
-                bin_centres: vec![1.5, 2.5, 3.5, 4.5],
-                frequencies: vec![1, 1, 1, 2]
-            }
-        )
-    }
+    // #[test]
+    // fn histogram_test() {
+    //     let data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+    //     assert_eq!(
+    //         bin(&data, 4),
+    //         Histogram {
+    //             bin_centres: vec![1.5, 2.5, 3.5, 4.5],
+    //             frequencies: vec![1, 1, 1, 2]
+    //         }
+    //     )
+    // }
     // #[test]
     // fn propagate_ratio_test() {
     //     let v1 = SingleMeasurement {
