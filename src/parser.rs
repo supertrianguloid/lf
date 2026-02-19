@@ -23,11 +23,11 @@ pub struct App {
     command: Command,
 }
 
-// #[derive(ValueEnum, Debug, Clone)]
-// pub enum BlockStrategy {
-//     Thinning,
-//     BlockAverage,
-// }
+#[derive(ValueEnum, Debug, Clone)]
+pub enum BlockStrategy {
+    Thinning,
+    Blocking,
+}
 
 #[derive(Subcommand, Debug)]
 enum Command {
@@ -122,8 +122,8 @@ pub struct BootstrapArgs {
     pub n_bins_histogram: usize,
     #[arg(long, value_name = "blocksize")]
     pub blocksize: usize,
-    // #[arg(long, value_name = "strategy")]
-    // pub strategy: BlockStrategy,
+    #[arg(long, value_name = "strategy")]
+    pub strategy: BlockStrategy,
 }
 
 #[derive(Parser, Debug)]

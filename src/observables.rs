@@ -44,8 +44,17 @@ where
     F: Fn(&[usize]) -> Option<T> + Send + Sync + Clone + 'static,
     T: SummaryStatistic,
 {
+    let sampler = match args.strategy {
+        crate::parser::BlockStrategy::Blocking => SamplingStrategy::Block {
+            block_size: args.blocksize,
+        },
+        crate::parser::BlockStrategy::Thinning => SamplingStrategy::MOutOfN {
+            m: estimator.indices().len() / args.blocksize,
+        },
+    };
     if let Some(n_boot_double) = args.n_boot_double {
         let est = estimator.clone();
+        let sampler_inner = sampler.clone();
         let outer_estimator = Estimator::new()
             .indices(estimator.indices().to_owned())
             .from(move |indices: &[usize]| {
@@ -53,9 +62,7 @@ where
 
                 let inner_result: BootstrapResult<T> = Bootstrap::builder()
                     .n_boot(args.n_boot)
-                    .sampler(SamplingStrategy::Block {
-                        block_size: args.blocksize,
-                    })
+                    .sampler(sampler_inner.clone())
                     .estimator(inner_estimator)
                     .build()
                     .run();
@@ -72,10 +79,8 @@ where
             to_string(
                 &Bootstrap::builder()
                     .n_boot(n_boot_double)
-                    .sampler(SamplingStrategy::Block {
-                        block_size: args.blocksize,
-                    })
                     .estimator(outer_estimator)
+                    .sampler(sampler.clone())
                     .build()
                     .run()
                     .summarize()
@@ -89,9 +94,7 @@ where
             to_string(
                 &Bootstrap::builder()
                     .n_boot(args.n_boot)
-                    .sampler(SamplingStrategy::Block {
-                        block_size: args.blocksize,
-                    })
+                    .sampler(sampler.clone())
                     .estimator(estimator)
                     .build()
                     .run()
