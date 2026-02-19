@@ -8,7 +8,7 @@ license = "GPL-3.0-only"
 repository = "https://github.com/supertrianguloid/lf"
 
 [dependencies]
-booted = { git = "https://github.com/supertrianguloid/booted" }
+booted = "0.3.6"
 clap = { version = "4.5.48", features = ["derive"] }
 clap_complete = "4.5.58"
 clap_complete_nushell = "4.5.8"
