@@ -120,10 +120,12 @@ pub struct BootstrapArgs {
     pub n_boot_double: Option<usize>,
     #[arg(long, value_name = "HISTOGRAM_BINS", default_value_t = 1000)]
     pub n_bins_histogram: usize,
-    #[arg(long, value_name = "blocksize")]
+    #[arg(long, value_name = "BLOCKSIZE")]
     pub blocksize: usize,
-    #[arg(long, value_name = "strategy")]
+    #[arg(long, value_name = "STRATEGY")]
     pub strategy: BlockStrategy,
+    #[arg(long, value_name = "BIAS_CORRECT")]
+    pub n_boot_bias: Option<usize>,
 }
 
 #[derive(Parser, Debug)]

@@ -90,20 +90,37 @@ where
         );
     } else {
         // --- Single Bootstrap ---
-        println!(
-            "{}",
-            to_string(
-                &Bootstrap::new()
-                    .n_boot(args.n_boot)
-                    .sampler(sampler.clone())
-                    .print_progress(true)
-                    .estimator(estimator)
-                    .build()
-                    .run()
-                    .summarize()
-            )
-            .unwrap()
-        );
+        if let Some(n_boot_bias) = args.n_boot_bias {
+            println!(
+                "{}",
+                to_string(
+                    &Bootstrap::new()
+                        .n_boot(args.n_boot)
+                        .sampler(sampler.clone())
+                        .print_progress(true)
+                        .estimator(estimator.bias_correct(n_boot_bias))
+                        .build()
+                        .run()
+                        .summarize()
+                )
+                .unwrap()
+            );
+        } else {
+            println!(
+                "{}",
+                to_string(
+                    &Bootstrap::new()
+                        .n_boot(args.n_boot)
+                        .sampler(sampler.clone())
+                        .print_progress(true)
+                        .estimator(estimator)
+                        .build()
+                        .run()
+                        .summarize()
+                )
+                .unwrap()
+            );
+        }
     }
 }
 
