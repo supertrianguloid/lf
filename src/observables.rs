@@ -60,7 +60,7 @@ where
             .from(move |indices: &[usize]| {
                 let inner_estimator = est.clone().set_indices(indices.to_owned());
 
-                let inner_result: BootstrapResult<T> = Bootstrap::builder()
+                let inner_result: BootstrapResult<T> = Bootstrap::new()
                     .n_boot(args.n_boot)
                     .sampler(sampler_inner.clone())
                     .estimator(inner_estimator)
@@ -77,7 +77,7 @@ where
         println!(
             "{}",
             to_string(
-                &Bootstrap::builder()
+                &Bootstrap::new()
                     .n_boot(n_boot_double)
                     .estimator(outer_estimator)
                     .sampler(sampler.clone())
@@ -93,7 +93,7 @@ where
         println!(
             "{}",
             to_string(
-                &Bootstrap::builder()
+                &Bootstrap::new()
                     .n_boot(args.n_boot)
                     .sampler(sampler.clone())
                     .print_progress(true)
