@@ -69,8 +69,7 @@ where
 
                 let summary: BootstrapSummary<T> = inner_result.summarize();
 
-                // Now T::standard_error works because T: SummaryStatistic
-                Some(T::standard_error(&summary.statistics))
+                Some(T::standard_error(&summary.statistics?))
             })
             .build();
 
