@@ -6,7 +6,7 @@ use crate::parser::{BootstrapArgs, HMCArgs};
 use crate::statistics::{mean, standard_error};
 use booted::bootstrap::{Bootstrap, BootstrapResult, Estimator};
 use booted::samplers::SamplingStrategy;
-use booted::summary::{BootstrapSummary, Summarizable, SummaryStatistic};
+use booted::summary::{BootstrapSummary, Summarisable, SummaryStatistic};
 use serde_json::to_string;
 
 use rand::distr::{Distribution, Uniform};
@@ -67,7 +67,7 @@ where
                     .build()
                     .run();
 
-                let summary: BootstrapSummary<T> = inner_result.summarize();
+                let summary: BootstrapSummary<T> = inner_result.summarise();
 
                 Some(T::standard_error(&summary.statistics?))
             })
@@ -83,7 +83,7 @@ where
                     .print_progress(true)
                     .build()
                     .run()
-                    .summarize()
+                    .summarise()
             )
             .unwrap()
         );
@@ -100,7 +100,7 @@ where
                         .estimator(estimator.bias_correct(n_boot_bias))
                         .build()
                         .run()
-                        .summarize()
+                        .summarise()
                 )
                 .unwrap()
             );
@@ -115,7 +115,7 @@ where
                         .estimator(estimator)
                         .build()
                         .run()
-                        .summarize()
+                        .summarise()
                 )
                 .unwrap()
             );
