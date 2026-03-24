@@ -4,7 +4,7 @@ use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac, 
 use crate::statistics::{mean, median, standard_deviation, weighted_mean};
 use crate::wilsonflow::{calculate_w0_from_samples, extract_tc, WilsonFlowCalculation};
 use booted::bootstrap::Estimator;
-use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::generate;
 use clap_complete_nushell::Nushell;
 use rayon::prelude::*;
@@ -23,10 +23,40 @@ pub struct App {
     command: Command,
 }
 
-#[derive(ValueEnum, Debug, Clone)]
-pub enum BlockStrategy {
-    Thinning,
-    Blocking,
+#[derive(Debug, Clone)]
+pub enum AutocorrelationStrategy {
+    MOfN(usize),
+    Blocking(usize),
+    Thinning(usize),
+}
+
+#[derive(Args, Debug, Clone)]
+#[group(required = true, multiple = false)]
+pub struct AutocorrelationStrategyArgs {
+    #[arg(long)]
+    m_of_n: Option<usize>,
+
+    #[arg(long)]
+    blocking: Option<usize>,
+
+    #[arg(long)]
+    thinning: Option<usize>,
+}
+
+impl From<AutocorrelationStrategyArgs> for AutocorrelationStrategy {
+    fn from(args: AutocorrelationStrategyArgs) -> Self {
+        if let Some(m) = args.m_of_n {
+            AutocorrelationStrategy::MOfN(m)
+        } else if let Some(b) = args.blocking {
+            AutocorrelationStrategy::Blocking(b)
+        } else if let Some(b) = args.thinning {
+            AutocorrelationStrategy::Thinning(b)
+        } else {
+            // Because clap's #[group(required = true)] ensures one is passed,
+            // this branch is technically impossible to reach.
+            unreachable!("Clap ensures exactly one flag is provided")
+        }
+    }
 }
 
 #[derive(Subcommand, Debug)]
@@ -120,10 +150,8 @@ pub struct BootstrapArgs {
     pub n_boot_double: Option<usize>,
     #[arg(long, value_name = "HISTOGRAM_BINS", default_value_t = 1000)]
     pub n_bins_histogram: usize,
-    #[arg(long, value_name = "BLOCKSIZE")]
-    pub blocksize: usize,
-    #[arg(long, value_name = "STRATEGY")]
-    pub strategy: BlockStrategy,
+    #[command(flatten)]
+    pub strategy: AutocorrelationStrategyArgs,
     #[arg(long, value_name = "BIAS_CORRECT")]
     pub n_boot_bias: Option<usize>,
 }
@@ -325,7 +353,7 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
                 let Measurement {
                     values: mu,
                     errors: _,
-                } = channel.obs.get_subsample_mean_stderr(args.boot.blocksize);
+                } = channel.obs.get_subsample_mean_stderr(1);
                 effective_mass(&mu, channel.global_t, tau, args.solver_precision)
             })
             .collect();

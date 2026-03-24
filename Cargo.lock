@@ -94,8 +94,9 @@ dependencies = [
 
 [[package]]
 name = "booted"
-version = "0.4.0"
-source = "git+https://github.com/supertrianguloid/booted#0e6f6cf3ee011b9620068ec36f7013ff01ef3a95"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7d443b979d841fe959b2a28fd928e7ab8a16d03781ebcf785ad8929b638074c"
 dependencies = [
  "bon",
  "indicatif",

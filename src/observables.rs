@@ -2,7 +2,7 @@ use serde::Serialize;
 
 // use crate::bootstrap::get_samples;
 use crate::io::{load_channel_from_file_folded, load_global_l_from_file, load_global_t_from_file};
-use crate::parser::{BootstrapArgs, HMCArgs};
+use crate::parser::{AutocorrelationStrategy, BootstrapArgs, HMCArgs};
 use crate::statistics::{mean, standard_error};
 use booted::bootstrap::{Bootstrap, BootstrapResult, Estimator};
 use booted::samplers::SamplingStrategy;
@@ -44,12 +44,11 @@ where
     F: Fn(&[usize]) -> Option<T> + Send + Sync + Clone + 'static,
     T: SummaryStatistic,
 {
-    let sampler = match args.strategy {
-        crate::parser::BlockStrategy::Blocking => SamplingStrategy::Block {
-            block_size: args.blocksize,
-        },
-        crate::parser::BlockStrategy::Thinning => SamplingStrategy::MOutOfN {
-            m: estimator.indices().len() / args.blocksize,
+    let sampler = match args.strategy.into() {
+        AutocorrelationStrategy::Blocking(b) => SamplingStrategy::Block { block_size: b },
+        AutocorrelationStrategy::MOfN(m) => SamplingStrategy::MOutOfN { m: m },
+        AutocorrelationStrategy::Thinning(b) => SamplingStrategy::MOutOfN {
+            m: estimator.indices().len() / b,
         },
     };
     if let Some(n_boot_double) = args.n_boot_double {
