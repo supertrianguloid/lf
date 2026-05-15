@@ -99,6 +99,10 @@ enum Command {
         #[clap(flatten)]
         args: ExtractTCArgs,
     },
+    ExtractW {
+        #[clap(flatten)]
+        args: ExtractWArgs,
+    },
     /// Extract the plaquette. Must be run on the WF data.
     Plaquette {
         #[clap(flatten)]
@@ -197,6 +201,11 @@ struct CalculateW0Args {
 struct ExtractTCArgs {
     #[arg(long, value_name = "T_REFERENCE", default_value_t = 0.0)]
     pub t_ref: f64,
+    #[clap(flatten)]
+    wf: WFArgs,
+}
+#[derive(Parser, Debug)]
+struct ExtractWArgs {
     #[clap(flatten)]
     wf: WFArgs,
 }
@@ -534,6 +543,11 @@ fn extract_tc_command(args: ExtractTCArgs) {
         serde_json::to_string(&extract_tc(wf.data, args.t_ref).unwrap()).unwrap()
     )
 }
+
+fn extract_w_command(args: ExtractWArgs) {
+    let wf = WilsonFlowCalculation::load(args.wf);
+    println!("{}", serde_json::to_string(&wf.data).unwrap())
+}
 fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
     let f_ap = ObservableCalculation::load(&args.hmc, String::from("g5_g0g5_re"));
     let f_ps = ObservableCalculation::load(&args.hmc, String::from("g5"));
@@ -649,6 +663,7 @@ pub fn parser() {
         Command::BootstrapFitsRatio { args } => bootstrap_fits_ratio_command(args),
         Command::CalculateW0 { args } => calculate_w0_command(args),
         Command::ExtractTC { args } => extract_tc_command(args),
+        Command::ExtractW { args } => extract_w_command(args),
         Command::Median { args } => median_command(args),
         Command::Plaquette { args } => plaquette_command(args),
         Command::ComputePCACMass { args } => compute_effective_pcac_mass_command(args),

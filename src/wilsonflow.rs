@@ -2,6 +2,7 @@ use crate::io::load_wf_observables_from_file;
 use crate::observables::{Measurement, Observable};
 use crate::parser::WFArgs;
 use crate::statistics::{centred_difference_derivative, line_of_best_fit};
+use serde::Serialize;
 
 #[allow(dead_code)]
 pub enum WilsonFlowObservables {
@@ -26,7 +27,7 @@ impl WilsonFlowObservables {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct W {
     pub w: Vec<f64>,
     pub t: Vec<f64>,
@@ -53,7 +54,7 @@ impl WilsonFlowCalculation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct WilsonFlow {
     pub t: Vec<f64>,
     pub t2_esym: Observable,

@@ -133,7 +133,7 @@ impl ObservableCalculation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Observable {
     pub each_len: usize,
     pub nconfs: usize,
