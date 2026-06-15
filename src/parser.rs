@@ -4,6 +4,7 @@ use crate::spectroscopy::{effective_mass, effective_mass_all_t, effective_pcac, 
 use crate::statistics::{mean, median, standard_deviation, weighted_mean};
 use crate::wilsonflow::{calculate_w0_from_samples, extract_tc, WilsonFlowCalculation};
 use booted::bootstrap::Estimator;
+use booted::samplers::{Sampler, SamplingStrategy};
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::generate;
 use clap_complete_nushell::Nushell;
@@ -351,6 +352,15 @@ fn fit_effective_mass_command(args: FitEffectiveMassArgs) {
 fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
     let channel = ObservableCalculation::load(&args.hmc, args.channel);
 
+    let sampler: SamplingStrategy = match args.boot.strategy.clone().into() {
+        AutocorrelationStrategy::Blocking(b) => SamplingStrategy::Block { block_size: b },
+        AutocorrelationStrategy::MOfN(m) => SamplingStrategy::MOutOfN { m },
+        AutocorrelationStrategy::Thinning(b) => SamplingStrategy::MOutOfN {
+            m: channel.obs.nconfs / b,
+        },
+    };
+    let all_indices: Vec<usize> = (0..channel.obs.nconfs).collect();
+
     let mut solve_failures = vec![];
     let mut effmass_mean = vec![];
     let mut effmass_error = vec![];
@@ -359,10 +369,11 @@ fn compute_effective_mass_command(args: ComputeEffectiveMassArgs) {
         let results: Vec<Result<f64, roots::SearchError>> = (0..args.boot.n_boot)
             .into_par_iter()
             .map(|_| {
+                let samples = sampler.sample(&all_indices);
                 let Measurement {
                     values: mu,
                     errors: _,
-                } = channel.obs.get_subsample_mean_stderr(1);
+                } = channel.obs.get_subsample_mean_stderr_from_samples(&samples);
                 effective_mass(&mu, channel.global_t, tau, args.solver_precision)
             })
             .collect();

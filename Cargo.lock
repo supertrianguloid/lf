@@ -95,7 +95,7 @@ dependencies = [
 [[package]]
 name = "booted"
 version = "0.5.0"
-source = "git+https://github.com/supertrianguloid/booted#272bf9c894b5f46e8ab4b8cffa34ef14a5f2e8e9"
+source = "git+https://github.com/supertrianguloid/booted#f9528da991ec5695c268fcdc5268d6f60b6b364e"
 dependencies = [
  "bon",
  "indicatif",
