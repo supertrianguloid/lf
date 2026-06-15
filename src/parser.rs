@@ -421,27 +421,22 @@ fn bootstrap_fps_command(args: BootstrapFpsArgs) {
                 args.ps_effective_mass_t_min,
                 args.ps_effective_mass_t_max + 1,
             )?;
-            let mut pcac = vec![];
+            let f_ap_vals = f_ap
+                .obs
+                .get_subsample_mean_stderr_from_samples(&samples)
+                .values;
             let m_ps_eff = effective_mass_all_t(
-                &f_ps
-                    .obs
-                    .get_subsample_mean_stderr_from_samples(&samples)
-                    .values,
+                &corr.values,
                 f_ps.global_t,
                 1,
                 f_ap.global_t / 2,
                 args.solver_precision,
             )?;
+            let mut pcac = vec![];
             for t in args.pcac_effective_mass_t_min..=args.pcac_effective_mass_t_max {
                 pcac.push(effective_pcac(
-                    &f_ap
-                        .obs
-                        .get_subsample_mean_stderr_from_samples(&samples)
-                        .values,
-                    &f_ps
-                        .obs
-                        .get_subsample_mean_stderr_from_samples(&samples)
-                        .values,
+                    &f_ap_vals,
+                    &corr.values,
                     &m_ps_eff,
                     t,
                 ));
@@ -555,29 +550,24 @@ fn compute_effective_pcac_mass_command(args: ComputePCACMassArgs) {
     let estimator = Estimator::new()
         .indices((0..f_ap.obs.nconfs).collect())
         .from(move |samples: &[usize]| {
+            let f_ap_vals = f_ap
+                .obs
+                .get_subsample_mean_stderr_from_samples(&samples)
+                .values;
+            let f_ps_vals = f_ps
+                .obs
+                .get_subsample_mean_stderr_from_samples(&samples)
+                .values;
+            let m_ps_eff = effective_mass_all_t(
+                &f_ps_vals,
+                f_ps.global_t,
+                1,
+                f_ap.global_t / 2,
+                args.solver_precision,
+            )?;
             let mut masses = vec![];
             for t in 0..(f_ap.obs.each_len - 2) {
-                masses.push(effective_pcac(
-                    &f_ap
-                        .obs
-                        .get_subsample_mean_stderr_from_samples(&samples)
-                        .values,
-                    &f_ps
-                        .obs
-                        .get_subsample_mean_stderr_from_samples(&samples)
-                        .values,
-                    &effective_mass_all_t(
-                        &f_ps
-                            .obs
-                            .get_subsample_mean_stderr_from_samples(&samples)
-                            .values,
-                        f_ps.global_t,
-                        1,
-                        f_ap.global_t / 2,
-                        args.solver_precision,
-                    )?,
-                    t,
-                ));
+                masses.push(effective_pcac(&f_ap_vals, &f_ps_vals, &m_ps_eff, t));
             }
             Some(masses)
         })
@@ -590,31 +580,24 @@ fn bootstrap_pcac_fit_command(args: ComputePCACMassFitArgs) {
     let estimator = Estimator::new()
         .indices((0..f_ap.obs.nconfs).collect())
         .from(move |samples: &[usize]| {
+            let f_ap_vals = f_ap
+                .obs
+                .get_subsample_mean_stderr_from_samples(&samples)
+                .values;
+            let f_ps_vals = f_ps
+                .obs
+                .get_subsample_mean_stderr_from_samples(&samples)
+                .values;
+            let m_ps_eff = effective_mass_all_t(
+                &f_ps_vals,
+                f_ps.global_t,
+                1,
+                f_ap.global_t / 2,
+                args.solver_precision,
+            )?;
             let mut mass = vec![];
             for t in args.effective_mass_t_min..=args.effective_mass_t_max {
-                let m_ps_eff = effective_mass_all_t(
-                    &f_ps
-                        .obs
-                        .get_subsample_mean_stderr_from_samples(&samples)
-                        .values,
-                    f_ps.global_t,
-                    1,
-                    f_ap.global_t / 2,
-                    args.solver_precision,
-                )?;
-
-                mass.push(effective_pcac(
-                    &f_ap
-                        .obs
-                        .get_subsample_mean_stderr_from_samples(&samples)
-                        .values,
-                    &f_ps
-                        .obs
-                        .get_subsample_mean_stderr_from_samples(&samples)
-                        .values,
-                    &m_ps_eff,
-                    t,
-                ));
+                mass.push(effective_pcac(&f_ap_vals, &f_ps_vals, &m_ps_eff, t));
             }
             Some(mean(&mass))
         })

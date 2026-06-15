@@ -1,5 +1,4 @@
 use crate::observables::Measurement;
-use crate::statistics::centred_difference_derivative;
 use nalgebra::DVector;
 use roots::{find_root_brent, SearchError, SimpleConvergency};
 use varpro::prelude::*;
@@ -94,8 +93,8 @@ where
 }
 
 pub fn effective_pcac(f_ap: &[f64], f_ps: &[f64], m_ps: &[f64], t: usize) -> f64 {
-    let d_f_ap = centred_difference_derivative(f_ap, 1.0);
-    0.5 * (m_ps[t + 1] / m_ps[t + 1].sinh()) * d_f_ap[t] / f_ps[t + 1]
+    let d_f_ap_t = (f_ap[t + 2] - f_ap[t]) / 2.0;
+    0.5 * (m_ps[t + 1] / m_ps[t + 1].sinh()) * d_f_ap_t / f_ps[t + 1]
 }
 
 pub fn effective_mass_all_t(
